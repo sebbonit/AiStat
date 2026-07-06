@@ -285,6 +285,7 @@ public struct OpenCodeGoUsageSnapshot: Equatable, Sendable {
     public let rolling: OpenCodeGoUsageWindow?
     public let weekly: OpenCodeGoUsageWindow?
     public let monthly: OpenCodeGoUsageWindow?
+    public let billing: OpenCodeGoBilling?
     public let source: String?
     public let fetchedAt: Date
 
@@ -292,12 +293,14 @@ public struct OpenCodeGoUsageSnapshot: Equatable, Sendable {
         rolling: OpenCodeGoUsageWindow?,
         weekly: OpenCodeGoUsageWindow?,
         monthly: OpenCodeGoUsageWindow?,
+        billing: OpenCodeGoBilling? = nil,
         source: String? = nil,
         fetchedAt: Date = Date()
     ) {
         self.rolling = rolling
         self.weekly = weekly
         self.monthly = monthly
+        self.billing = billing
         self.source = source
         self.fetchedAt = fetchedAt
     }
@@ -314,5 +317,43 @@ public struct OpenCodeGoUsageWindow: Equatable, Sendable {
     public init(usedPercent: Double, resetAt: Date?) {
         self.usedPercent = max(0, min(100, usedPercent))
         self.resetAt = resetAt
+    }
+}
+
+public struct OpenCodeGoPayment: Equatable, Sendable {
+    public let id: String
+    public let amountText: String
+    public let date: Date?
+    public let dateText: String
+    public let refunded: Bool
+
+    public init(id: String, amountText: String, date: Date?, dateText: String, refunded: Bool) {
+        self.id = id
+        self.amountText = amountText
+        self.date = date
+        self.dateText = dateText
+        self.refunded = refunded
+    }
+}
+
+public struct OpenCodeGoBilling: Equatable, Sendable {
+    public let balanceText: String?
+    public let cardLast4: String?
+    public let autoReloadEnabled: Bool
+    public let payments: [OpenCodeGoPayment]
+
+    public init(balanceText: String?, cardLast4: String?, autoReloadEnabled: Bool, payments: [OpenCodeGoPayment]) {
+        self.balanceText = balanceText
+        self.cardLast4 = cardLast4
+        self.autoReloadEnabled = autoReloadEnabled
+        self.payments = payments
+    }
+
+    public var lastPayment: OpenCodeGoPayment? {
+        payments.first
+    }
+
+    public var hasData: Bool {
+        balanceText != nil || cardLast4 != nil || !payments.isEmpty
     }
 }

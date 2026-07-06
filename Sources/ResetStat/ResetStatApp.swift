@@ -250,6 +250,10 @@ struct ResetStatPopover: View {
                     systemImage: "speedometer"
                 )
 
+                billingExpirySection
+
+                Divider()
+
                 VStack(spacing: 8) {
                     ForEach(viewModel.providerSummaries) { summary in
                         overviewRow(summary)
@@ -321,6 +325,107 @@ struct ResetStatPopover: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var billingExpirySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Billing & renewals")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(billingSummaryDetail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                spacing: 8
+            ) {
+                ForEach(viewModel.billingExpiries) { entry in
+                    billingExpiryCell(entry)
+                }
+            }
+        }
+    }
+
+    private func billingExpiryCell(_ entry: BillingExpiry) -> some View {
+        let primaryText: String = entry.date.map { UsageFormatting.resetText(date: $0, now: viewModel.now) } ?? entry.amountText ?? "—"
+        let secondaryText: String = entry.date.map { UsageFormatting.relativeDayText(date: $0, now: viewModel.now) } ?? entry.detailText ?? "No billing"
+        let primaryColor: Color = entry.date == nil && entry.amountText == nil ? .secondary : (entry.date == nil ? .primary : expiryColor(entry.urgency))
+        return HStack(spacing: 8) {
+            Image(systemName: providerIcon(entry.tab.systemImage))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(expiryColor(entry.urgency))
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(providerShortName(entry.tab))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(entry.label)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(primaryText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(primaryColor)
+                    .lineLimit(1)
+                Text(secondaryText)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
+    }
+
+    private var billingSummaryDetail: String {
+        let expiring = viewModel.billingExpiries.filter { $0.urgency == .expired || $0.urgency == .soon }.count
+        if expiring > 0 { return "\(expiring) expiring soon" }
+        let warn = viewModel.billingExpiries.filter { $0.urgency == .warning }.count
+        if warn > 0 { return "\(warn) within 2w" }
+        let healthy = viewModel.billingExpiries.filter { $0.urgency == .healthy }.count
+        if healthy > 0 { return "Up to date" }
+        return "—"
+    }
+
+    private func expiryColor(_ urgency: UsageFormatting.ExpiryUrgency) -> Color {
+        switch urgency {
+        case .expired: return .red
+        case .soon: return .orange
+        case .warning: return .yellow
+        case .healthy: return .green
+        case .unknown: return .secondary
+        }
+    }
+
+    private func providerShortName(_ tab: ProviderTab) -> String {
+        if viewModel.hidesProviderNames {
+            switch tab {
+            case .codex: return "P1"
+            case .cursor: return "P2"
+            case .devin: return "P3"
+            case .openCodeGo: return "P4"
+            default: return tab.privateName
+            }
+        }
+        switch tab {
+        case .codex: return "Codex"
+        case .cursor: return "Cursor"
+        case .devin: return "Devin"
+        case .openCodeGo: return "Go"
+        default: return tab.displayName
+        }
     }
 
     private func codexSection(_ snapshot: ResetStatSnapshot) -> some View {
@@ -512,6 +617,10 @@ struct ResetStatPopover: View {
 
                 if let snapshot = viewModel.openCodeGoSnapshot, snapshot.hasUsage {
                     openCodeGoUsageView(snapshot)
+                    if let billing = snapshot.billing {
+                        Divider()
+                        openCodeGoBillingView(billing)
+                    }
                 } else if case .loading = viewModel.openCodeGoState {
                     StatusLine(icon: "hourglass", color: .secondary, text: "Checking OpenCode Go usage...")
                 } else if case .failed(let message) = viewModel.openCodeGoState {
@@ -701,6 +810,71 @@ struct ResetStatPopover: View {
             openCodeGoUsageBar(title: "Rolling", window: snapshot.rolling, tint: .mint)
             openCodeGoUsageBar(title: "Weekly", window: snapshot.weekly, tint: .orange)
             openCodeGoUsageBar(title: "Monthly", window: snapshot.monthly, tint: .blue)
+        }
+    }
+
+    private func openCodeGoBillingView(_ billing: OpenCodeGoBilling) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Billing")
+                    .font(.caption.weight(.semibold))
+                Spacer()
+                if billing.autoReloadEnabled {
+                    Text("Auto-reload on")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Current balance")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(billing.balanceText ?? "—")
+                        .font(.callout.weight(.semibold))
+                }
+                Spacer()
+                if let last4 = billing.cardLast4 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "creditcard")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text("•••• \(last4)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if !billing.payments.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Payments")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    VStack(spacing: 5) {
+                        ForEach(Array(billing.payments.prefix(5).enumerated()), id: \.offset) { _, payment in
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(payment.dateText.isEmpty ? (payment.date.map { UsageFormatting.resetText(date: $0, now: viewModel.now) } ?? "—") : payment.dateText)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(payment.amountText.isEmpty ? "—" : payment.amountText)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(payment.refunded ? .secondary : .primary)
+                                    .strikethrough(payment.refunded)
+                                if payment.refunded {
+                                    Text("refunded")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

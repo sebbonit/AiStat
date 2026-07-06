@@ -204,6 +204,53 @@ struct ResetStatCoreTests {
         #expect(snapshot.monthly?.resetAt == now.addingTimeInterval(2_336_400))
     }
 
+    @Test("Parses OpenCode Go billing page")
+    func parsesOpenCodeGoBilling() {
+        let html = #"""
+        <span data-slot="balance-value">$<!--$-->0.00<!--/--></span>
+        <span data-slot="secret">••••</span><span data-slot="number">2809</span>
+        <p>Auto reload is<!--$--> <b>disabled</b>. Enable to automatically reload when balance is low.</p>
+        <table data-slot="payments-table-element"><thead><tr><th>Date</th><th>Payment ID</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>
+        <tr><td data-slot="payment-date" title="Wed, Jul 1, 2026, 11:51:42 PM UTC">Jul 1, 11:51 PM</td><td data-slot="payment-id">pay_01KWG1GY4GW96V8E2V4C9J41RJ</td><td data-slot="payment-amount" data-refunded="false">$10.00</td><td data-slot="payment-receipt"><button>View</button></td></tr>
+        <tr><td data-slot="payment-date" title="Fri, May 1, 2026, 10:50:56 PM UTC">May 1, 10:50 PM</td><td data-slot="payment-id">pay_01KQJVSTAG6XX6Z4D7AT6EM8Z3</td><td data-slot="payment-amount" data-refunded="true">$5.00</td><td data-slot="payment-receipt"><button>View</button></td></tr>
+        </tbody></table>
+        """#
+
+        let billing = OpenCodeGoBillingParser.billing(from: html)
+
+        #expect(billing?.balanceText == "$0.00")
+        #expect(billing?.cardLast4 == "2809")
+        #expect(billing?.autoReloadEnabled == false)
+        #expect(billing?.payments.count == 2)
+        #expect(billing?.payments.first?.id == "pay_01KWG1GY4GW96V8E2V4C9J41RJ")
+        #expect(billing?.payments.first?.amountText == "$10.00")
+        #expect(billing?.payments.first?.dateText == "Jul 1, 11:51 PM")
+        #expect(billing?.payments.first?.refunded == false)
+        let firstDate = Date(timeIntervalSince1970: 1_782_949_902)
+        #expect(billing?.payments.first?.date == firstDate)
+        #expect(billing?.payments.last?.refunded == true)
+    }
+
+    @Test("Parses OpenCode Go billing when auto reload is enabled")
+    func parsesOpenCodeGoBillingAutoReloadEnabled() {
+        let html = #"""
+        <span data-slot="balance-value">$<!--$-->12.50<!--/--></span>
+        <p>Auto reload is<!--$--> <b>enabled</b>. Reload $20 when balance drops below $5.</p>
+        """#
+
+        let billing = OpenCodeGoBillingParser.billing(from: html)
+
+        #expect(billing?.balanceText == "$12.50")
+        #expect(billing?.autoReloadEnabled == true)
+        #expect(billing?.payments.isEmpty == true)
+    }
+
+    @Test("Returns nil billing when no billing data is present")
+    func returnsNilBillingWhenEmpty() {
+        let html = #"<html><body><h1>Not a billing page</h1></body></html>"#
+        #expect(OpenCodeGoBillingParser.billing(from: html) == nil)
+    }
+
     @Test("Decodes backend reset-credit expirations")
     func decodesBackendResetCreditExpirations() throws {
         let response = try decodeFixture("reset_credits_backend", as: BackendResetCreditsResponse.self, decoder: .resetStatBackend)

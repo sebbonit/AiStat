@@ -21,7 +21,19 @@ public final class OpenCodeGoUsageClient: OpenCodeGoUsageFetching, @unchecked Se
             throw CodexUsageError.unavailable("OpenCode Go needs dashboard auth. Run Scripts/configure-opencode-go.sh.")
         }
 
-        return try await scrapeDashboard(config: config)
+        async let usageTask = scrapeDashboard(config: config)
+        async let billingTask = scrapeBilling(config: config)
+
+        var snapshot = try await usageTask
+        snapshot = OpenCodeGoUsageSnapshot(
+            rolling: snapshot.rolling,
+            weekly: snapshot.weekly,
+            monthly: snapshot.monthly,
+            billing: await billingTask,
+            source: snapshot.source,
+            fetchedAt: snapshot.fetchedAt
+        )
+        return snapshot
     }
 
     private func scrapeDashboard(config: OpenCodeGoDashboardConfig) async throws -> OpenCodeGoUsageSnapshot {
@@ -47,6 +59,25 @@ public final class OpenCodeGoUsageClient: OpenCodeGoUsageFetching, @unchecked Se
             throw CodexUsageError.unavailable("OpenCode Go dashboard usage was not found.")
         }
         return parsed
+    }
+
+    private func scrapeBilling(config: OpenCodeGoDashboardConfig) async -> OpenCodeGoBilling? {
+        let encoded = config.workspaceId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? config.workspaceId
+        let url = URL(string: "https://opencode.ai/workspace/\(encoded)/billing")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Gecko/20100101 Firefox/148.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("text/html", forHTTPHeaderField: "Accept")
+        request.setValue("auth=\(config.authCookie)", forHTTPHeaderField: "Cookie")
+
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              let html = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return OpenCodeGoBillingParser.billing(from: html)
     }
 }
 
@@ -170,6 +201,95 @@ enum OpenCodeGoDashboardParser {
             usedPercent: usedPercent,
             resetAt: now.addingTimeInterval(max(0, resetSeconds))
         )
+    }
+
+    private static func firstMatch(pattern: String, in text: String) -> [String]? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range), match.numberOfRanges > 1 else {
+            return nil
+        }
+
+        return (1..<match.numberOfRanges).compactMap { index in
+            guard let range = Range(match.range(at: index), in: text) else { return nil }
+            return String(text[range])
+        }
+    }
+}
+
+enum OpenCodeGoBillingParser {
+    static func billing(from html: String) -> OpenCodeGoBilling? {
+        let balance = firstMatch(pattern: #"data-slot="balance-value"[^>]*>(.*?)</span>"#, in: html)?
+            .first
+            .map { stripSolid($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { cleanAmount($0) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+
+        let cardLast4 = firstMatch(pattern: #"data-slot="number">(\d{3,4})<"#, in: html)?.first
+
+        let autoReload: Bool = {
+            let state = firstMatch(pattern: #"Auto reload is.*?<b>(enabled|disabled)</b>"#, in: html)?.first
+            return state == "enabled"
+        }()
+
+        let payments = parsePayments(html: html)
+
+        let result = OpenCodeGoBilling(
+            balanceText: balance,
+            cardLast4: cardLast4,
+            autoReloadEnabled: autoReload,
+            payments: payments
+        )
+
+        return result.hasData ? result : nil
+    }
+
+    private static func parsePayments(html: String) -> [OpenCodeGoPayment] {
+        let parts = html.components(separatedBy: #"data-slot="payment-date""#)
+        guard parts.count > 1 else { return [] }
+
+        return parts.dropFirst().compactMap { chunk in
+            guard let id = firstMatch(pattern: #"data-slot="payment-id">([^<]+)<"#, in: chunk)?.first else {
+                return nil
+            }
+            let title = firstMatch(pattern: #"title="([^"]+)""#, in: chunk)?.first
+            let dateText = firstMatch(pattern: #"[^>]*>([^<]*)<"#, in: chunk)?.first?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let amount = firstMatch(pattern: #"data-slot="payment-amount"[^>]*>.*?(\$[\d.,]+)"#, in: chunk)?.first
+            let refunded = firstMatch(pattern: #"data-refunded="(true|false)""#, in: chunk)?.first == "true"
+
+            return OpenCodeGoPayment(
+                id: id,
+                amountText: amount ?? "",
+                date: title.flatMap(parseDate),
+                dateText: dateText ?? "",
+                refunded: refunded
+            )
+        }
+    }
+
+    private static let paymentDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "EEE, MMM d, yyyy, h:mm:ss a z"
+        return formatter
+    }()
+
+    private static func parseDate(_ title: String) -> Date? {
+        paymentDateFormatter.date(from: title)
+    }
+
+    private static func stripSolid(_ text: String) -> String {
+        text.replacingOccurrences(of: "<!--$-->", with: "")
+            .replacingOccurrences(of: "<!--/-->", with: "")
+            .replacingOccurrences(of: "<!--$--", with: "")
+    }
+
+    private static func cleanAmount(_ text: String) -> String {
+        guard let match = text.range(of: #"\$[\d.,]+"#, options: .regularExpression) else {
+            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return String(text[match])
     }
 
     private static func firstMatch(pattern: String, in text: String) -> [String]? {

@@ -44,6 +44,17 @@ struct ProviderUsageSummary: Identifiable {
     }
 }
 
+struct BillingExpiry: Identifiable {
+    let tab: ProviderTab
+    let label: String
+    let date: Date?
+    let amountText: String?
+    let detailText: String?
+    let urgency: UsageFormatting.ExpiryUrgency
+
+    var id: ProviderTab { tab }
+}
+
 private struct LimitCandidate {
     let title: String
     let percent: Int
@@ -124,6 +135,75 @@ final class UsageViewModel: ObservableObject {
                 return ($0.percentUsed ?? -1) > ($1.percentUsed ?? -1)
             }
             .first
+    }
+
+    var billingExpiries: [BillingExpiry] {
+        [
+            codexBillingExpiry,
+            cursorBillingExpiry,
+            devinBillingExpiry,
+            openCodeGoBillingExpiry
+        ]
+    }
+
+    private var codexBillingExpiry: BillingExpiry {
+        let date = snapshot?.planExpiresAt
+        return BillingExpiry(
+            tab: .codex,
+            label: "Renews",
+            date: date,
+            amountText: nil,
+            detailText: nil,
+            urgency: UsageFormatting.expiryUrgency(expiresAt: date, now: now)
+        )
+    }
+
+    private var cursorBillingExpiry: BillingExpiry {
+        let date = cursorSnapshot?.billingCycleEnd
+        return BillingExpiry(
+            tab: .cursor,
+            label: "Cycle ends",
+            date: date,
+            amountText: nil,
+            detailText: nil,
+            urgency: UsageFormatting.expiryUrgency(expiresAt: date, now: now)
+        )
+    }
+
+    private var devinBillingExpiry: BillingExpiry {
+        let date = desktopQuotaSnapshots.first?.cycleEnd
+        return BillingExpiry(
+            tab: .devin,
+            label: "Cycle ends",
+            date: date,
+            amountText: nil,
+            detailText: nil,
+            urgency: UsageFormatting.expiryUrgency(expiresAt: date, now: now)
+        )
+    }
+
+    private var openCodeGoBillingExpiry: BillingExpiry {
+        let billing = openCodeGoSnapshot?.billing
+        let lastPayment = billing?.lastPayment
+        let balance = billing?.balanceText
+
+        let label: String
+        if lastPayment != nil {
+            label = "Last payment"
+        } else if billing == nil {
+            label = "No billing"
+        } else {
+            label = "No payments"
+        }
+
+        return BillingExpiry(
+            tab: .openCodeGo,
+            label: label,
+            date: lastPayment?.date,
+            amountText: balance,
+            detailText: lastPayment.flatMap { $0.dateText.isEmpty ? nil : $0.dateText },
+            urgency: .unknown
+        )
     }
 
     var menuBarTitle: String {
