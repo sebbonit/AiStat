@@ -1,0 +1,14 @@
+{
+  "planName": "Teams",
+  "startTimestamp": 1774181710000,
+  "endTimestamp": 1776860110000,
+  "billingStrategy": "quota",
+  "quotaUsage": {
+    "dailyRemainingPercent": 66,
+    "weeklyRemainingPercent": 80,
+    "overageBalanceMicros": 0,
+    "dailyResetAtUnix": 1776326400,
+    "weeklyResetAtUnix": 1776585600
+  },
+  "teamsTier": 16
+}

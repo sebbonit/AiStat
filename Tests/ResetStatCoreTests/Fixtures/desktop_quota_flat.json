@@ -1,0 +1,17 @@
+{
+  "planName": "Pro",
+  "billingStrategy": "quota",
+  "duration": 25,
+  "startTimestamp": 1781727524000,
+  "endTimestamp": 1784319524000,
+  "remainingMessages": -1,
+  "totalMessages": -1,
+  "remainingFlexCredits": 0,
+  "dailyRemainingPercent": 100,
+  "weeklyRemainingPercent": 80,
+  "overageBalanceMicros": -82287,
+  "dailyResetAtUnix": 1782201600,
+  "weeklyResetAtUnix": 1782633600,
+  "isFreeOrTrial": false,
+  "teamsTier": 16
+}

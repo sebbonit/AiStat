@@ -1,0 +1,29 @@
+{
+  "accounts": {
+    "account-1": {
+      "account": {
+        "plan_type": "plus"
+      },
+      "entitlement": {
+        "has_active_subscription": true,
+        "subscription_plan": "chatgptplusplan",
+        "expires_at": "2026-07-14T03:09:02+00:00",
+        "renews_at": "2026-07-13T21:09:02+00:00"
+      }
+    },
+    "default": {
+      "account": {
+        "plan_type": "plus"
+      },
+      "entitlement": {
+        "has_active_subscription": true,
+        "subscription_plan": "chatgptplusplan",
+        "expires_at": "2026-07-15T04:09:02+00:00",
+        "renews_at": "2026-07-14T22:09:02+00:00"
+      }
+    }
+  },
+  "account_ordering": [
+    "account-1"
+  ]
+}

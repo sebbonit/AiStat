@@ -1,0 +1,15 @@
+{
+  "rateLimitResetCredits": null,
+  "rateLimits": {
+    "limitId": "fallback",
+    "limitName": "Fallback Codex",
+    "planType": "plus",
+    "primary": {
+      "resetsAt": null,
+      "usedPercent": 55,
+      "windowDurationMins": null
+    },
+    "secondary": null
+  },
+  "rateLimitsByLimitId": null
+}

@@ -1,0 +1,16 @@
+{
+  "planInfo": {
+    "planName": "Pro",
+    "includedAmountCents": 2000,
+    "price": "$20/mo",
+    "billingCycleEnd": "1784850897000",
+    "planOwner": "PLAN_OWNER_STRIPE"
+  },
+  "nextUpgrade": {
+    "tier": "pro_plus",
+    "name": "Pro+",
+    "includedAmountCents": 7000,
+    "price": "$60/mo",
+    "description": "Unlock more usage"
+  }
+}

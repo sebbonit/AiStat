@@ -1,0 +1,32 @@
+{
+  "credits": [
+    {
+      "id": "credit-2",
+      "reset_type": "rate_limit",
+      "status": "available",
+      "granted_at": "2026-06-25T10:00:00.000Z",
+      "expires_at": "2026-07-10T12:30:00.000Z",
+      "redeem_started_at": null,
+      "redeemed_at": null,
+      "profile_image_url": "https://example.test/avatar.png",
+      "profile_user_id": "user-2",
+      "title": "Reset credit",
+      "description": "Use this to reset an eligible Codex usage window."
+    },
+    {
+      "id": "credit-1",
+      "reset_type": "rate_limit",
+      "status": "available",
+      "granted_at": "2026-06-20T10:00:00.000Z",
+      "expires_at": "2026-07-02T08:15:00.000Z",
+      "redeem_started_at": null,
+      "redeemed_at": null,
+      "profile_image_url": "https://example.test/avatar.png",
+      "profile_user_id": "user-1",
+      "title": "Reset credit",
+      "description": "Use this to reset an eligible Codex usage window."
+    }
+  ],
+  "available_count": 2,
+  "total_earned_count": 2
+}

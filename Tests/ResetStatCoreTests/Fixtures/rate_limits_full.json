@@ -1,0 +1,38 @@
+{
+  "rateLimitResetCredits": {
+    "availableCount": 2,
+    "expiresAt": 1784000000
+  },
+  "rateLimits": {
+    "limitId": "legacy",
+    "limitName": "Legacy",
+    "planType": "plus",
+    "primary": {
+      "resetsAt": 1782900000,
+      "usedPercent": 80,
+      "windowDurationMins": 300
+    },
+    "secondary": {
+      "resetsAt": 1783200000,
+      "usedPercent": 40,
+      "windowDurationMins": 10080
+    }
+  },
+  "rateLimitsByLimitId": {
+    "codex": {
+      "limitId": "codex",
+      "limitName": "Codex",
+      "planType": "pro",
+      "primary": {
+        "resetsAt": 1783000000,
+        "usedPercent": 20,
+        "windowDurationMins": 300
+      },
+      "secondary": {
+        "resetsAt": 1783600000,
+        "usedPercent": 10,
+        "windowDurationMins": 10080
+      }
+    }
+  }
+}
