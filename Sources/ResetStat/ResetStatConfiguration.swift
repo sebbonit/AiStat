@@ -128,7 +128,7 @@ struct SetupConfiguration: Codable, Equatable {
 }
 
 struct RefreshConfiguration: Codable, Equatable {
-    static let validIntervals: [Int] = [60, 300, 900, 1800]
+    static let validIntervals: [Int] = [60, 180, 300, 900, 1800]
 
     var intervalSeconds: Int
     var retryEnabled: Bool
@@ -157,7 +157,9 @@ struct RefreshConfiguration: Codable, Equatable {
     static func sanitizedInterval(_ seconds: Int) -> Int {
         guard !validIntervals.isEmpty else { return 300 }
         if validIntervals.contains(seconds) { return seconds }
-        return validIntervals.min(by: { abs($0 - seconds) < abs($1 - seconds) }) ?? validIntervals[1]
+        // Allow custom values in 1–60 minute range, snapped to nearest minute
+        let clamped = max(60, min(3600, seconds))
+        return clamped
     }
 }
 

@@ -13,7 +13,7 @@ struct SettingsSectionView: View {
     @State private var expandedProvider: ProviderTab?
 
     var body: some View {
-        AlwaysVisibleScrollView {
+        ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if viewModel.configuration.setup.showsFirstLaunchSetup {
                     firstLaunchSetupView
@@ -27,7 +27,9 @@ struct SettingsSectionView: View {
                 resetSection
             }
         }
+        .scrollIndicators(.visible, axes: .vertical)
         .onAppear {
+            NSScroller.forceOverlayScrollers()
             if !didLoadConfig {
                 didLoadConfig = true
                 loadOpenCodeGoDashboardConfig()
@@ -265,14 +267,33 @@ struct SettingsSectionView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                    Picker("Interval", selection: refreshIntervalBinding) {
+                    Picker("Interval", selection: refreshIntervalPickerBinding) {
                         Text("1m").tag(60)
+                        Text("3m").tag(180)
                         Text("5m").tag(300)
                         Text("15m").tag(900)
                         Text("30m").tag(1800)
+                        Text("Custom").tag(0)
                     }
                     .pickerStyle(.segmented)
                     .font(.caption.weight(.semibold))
+
+                    if viewModel.configuration.refresh.intervalSeconds > 1800
+                        || !RefreshConfiguration.validIntervals.contains(viewModel.configuration.refresh.intervalSeconds)
+                    {
+                        HStack(spacing: 8) {
+                            Text("Custom")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Stepper(
+                                "\(viewModel.configuration.refresh.intervalSeconds / 60) min",
+                                value: refreshCustomMinutesBinding,
+                                in: 1...60
+                            )
+                            .font(.caption)
+                        }
+                        .padding(.leading, 4)
+                    }
                 }
 
                 Toggle("Retry on failure", isOn: retryEnabledBinding)
@@ -540,6 +561,38 @@ struct SettingsSectionView: View {
             get: { viewModel.configuration.refresh.intervalSeconds },
             set: { value in
                 viewModel.updateConfiguration { $0.refresh.intervalSeconds = value }
+            }
+        )
+    }
+
+    private var refreshIntervalPickerBinding: Binding<Int> {
+        Binding(
+            get: {
+                let current = viewModel.configuration.refresh.intervalSeconds
+                if RefreshConfiguration.validIntervals.contains(current) {
+                    return current
+                }
+                return 0 // Custom
+            },
+            set: { value in
+                if value == 0 {
+                    // Switching to custom — keep current value if already custom, otherwise default to 10m
+                    let current = viewModel.configuration.refresh.intervalSeconds
+                    if RefreshConfiguration.validIntervals.contains(current) {
+                        viewModel.updateConfiguration { $0.refresh.intervalSeconds = 600 }
+                    }
+                } else {
+                    viewModel.updateConfiguration { $0.refresh.intervalSeconds = value }
+                }
+            }
+        )
+    }
+
+    private var refreshCustomMinutesBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.configuration.refresh.intervalSeconds / 60 },
+            set: { minutes in
+                viewModel.updateConfiguration { $0.refresh.intervalSeconds = max(1, minutes) * 60 }
             }
         )
     }

@@ -14,40 +14,12 @@ struct SectionBlock<Content: View>: View {
     }
 }
 
-struct AlwaysVisibleScrollView<Content: View>: NSViewRepresentable {
-    @ViewBuilder let content: Content
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = false
-        scrollView.scrollerStyle = .overlay
-        scrollView.drawsBackground = false
-        scrollView.automaticallyAdjustsContentInsets = false
-        scrollView.contentInsets = .init(top: 0, left: 0, bottom: 0, right: 0)
-
-        let hostingView = NSHostingView(rootView: AnyView(content))
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.documentView = hostingView
-
-        hostingView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor).isActive = true
-        hostingView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor).isActive = true
-        hostingView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor).isActive = true
-        hostingView.bottomAnchor.constraint(equalTo: scrollView.contentView.bottomAnchor).isActive = true
-
-        return scrollView
-    }
-
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if let hostingView = nsView.documentView as? NSHostingView<AnyView> {
-            hostingView.rootView = AnyView(content)
-        }
-        nsView.hasVerticalScroller = true
-        nsView.autohidesScrollers = false
-        nsView.scrollerStyle = .overlay
-        nsView.scrollerKnobStyle = .default
-        nsView.needsDisplay = true
+extension NSScroller {
+    static func forceOverlayScrollers() {
+        // Force overlay scrollers for this process so they stay visible
+        // instead of auto-hiding based on the user's system preference.
+        UserDefaults.standard.set(false, forKey: "AppleShowScrollBars")
+        UserDefaults.standard.synchronize()
     }
 }
 

@@ -216,14 +216,17 @@ struct ResetStatConfigurationTests {
     @Test("Refresh interval sanitizes invalid values to nearest valid interval")
     func refreshIntervalSanitizesInvalidValues() {
         #expect(RefreshConfiguration.sanitizedInterval(60) == 60)
+        #expect(RefreshConfiguration.sanitizedInterval(180) == 180)
         #expect(RefreshConfiguration.sanitizedInterval(300) == 300)
         #expect(RefreshConfiguration.sanitizedInterval(900) == 900)
         #expect(RefreshConfiguration.sanitizedInterval(1800) == 1800)
-        #expect(RefreshConfiguration.sanitizedInterval(100) == 60)
-        #expect(RefreshConfiguration.sanitizedInterval(200) == 300)
-        #expect(RefreshConfiguration.sanitizedInterval(600) == 300)
-        #expect(RefreshConfiguration.sanitizedInterval(1200) == 900)
-        #expect(RefreshConfiguration.sanitizedInterval(9999) == 1800)
+        // Custom values are clamped to 1–60 minute range
+        #expect(RefreshConfiguration.sanitizedInterval(100) == 100)
+        #expect(RefreshConfiguration.sanitizedInterval(200) == 200)
+        #expect(RefreshConfiguration.sanitizedInterval(600) == 600)
+        #expect(RefreshConfiguration.sanitizedInterval(1200) == 1200)
+        #expect(RefreshConfiguration.sanitizedInterval(0) == 60)
+        #expect(RefreshConfiguration.sanitizedInterval(9999) == 3600)
     }
 
     @Test("Refresh configuration clamps invalid values on decode")
@@ -231,7 +234,7 @@ struct ResetStatConfigurationTests {
         let json = #"{"intervalSeconds":12345,"retryEnabled":false,"maxRetryAttempts":-2}"#
         let config = try JSONDecoder().decode(RefreshConfiguration.self, from: Data(json.utf8))
 
-        #expect(config.intervalSeconds == 1800)
+        #expect(config.intervalSeconds == 3600)
         #expect(config.retryEnabled == false)
         #expect(config.maxRetryAttempts == 0)
     }
