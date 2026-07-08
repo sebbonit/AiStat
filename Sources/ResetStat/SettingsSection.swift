@@ -10,66 +10,19 @@ struct SettingsSectionView: View {
     @State private var openCodeGoSetupMessage: String?
     @State private var openCodeGoSetupMessageIsError = false
     @State private var didLoadConfig = false
+    @State private var expandedProvider: ProviderTab?
 
     var body: some View {
-        SectionBlock {
+        ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: "Settings", detail: "Providers", systemImage: "gearshape", hidesProviderNames: viewModel.hidesProviderNames)
-
                 if viewModel.configuration.setup.showsFirstLaunchSetup {
                     firstLaunchSetupView
                 }
 
-                VStack(spacing: 10) {
-                    settingsProviderRow(
-                        tab: .codex,
-                        pathTitle: "Executable",
-                        path: codexPathBinding,
-                        isEnabled: providerEnabledBinding(.codex)
-                    )
-                    settingsProviderRow(
-                        tab: .cursor,
-                        pathTitle: "State database",
-                        path: cursorPathBinding,
-                        isEnabled: providerEnabledBinding(.cursor)
-                    )
-                    settingsProviderRow(
-                        tab: .devin,
-                        pathTitle: "State database",
-                        path: devinPathBinding,
-                        isEnabled: providerEnabledBinding(.devin)
-                    )
-                    settingsProviderRow(
-                        tab: .openCodeGo,
-                        pathTitle: "Config file",
-                        path: openCodeGoPathBinding,
-                        isEnabled: providerEnabledBinding(.openCodeGo)
-                    )
-                    openCodeGoDashboardConfigView
-                }
-
-                Divider()
-
-                Picker("Menu bar", selection: menuBarDisplayBinding) {
-                    Text("Logos").tag(MenuBarDisplay.logos)
-                    Text("Countdowns").tag(MenuBarDisplay.countdowns)
-                    Text("Hidden").tag(MenuBarDisplay.hidden)
-                }
-                .pickerStyle(.segmented)
-                .font(.caption.weight(.semibold))
-
-                HStack {
-                    Button("Reset all settings") {
-                        viewModel.resetConfigurationToDefaults()
-                        selectedTab = .overview
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                    Spacer()
-                    Text("Saved automatically")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                providersSection
+                openCodeGoAuthSection
+                menuBarSection
+                resetSection
             }
         }
         .onAppear {
@@ -79,6 +32,239 @@ struct SettingsSectionView: View {
             }
         }
     }
+
+    // MARK: - Providers
+
+    private var providersSection: some View {
+        SectionBlock {
+            VStack(alignment: .leading, spacing: 10) {
+                settingsSectionHeader(
+                    title: "Providers",
+                    systemImage: "checkmark.circle",
+                    detail: "\(enabledProviderCount) of \(ProviderTab.providerCases.count) enabled"
+                )
+
+                VStack(spacing: 6) {
+                    ForEach(ProviderTab.providerCases) { tab in
+                        providerRow(tab)
+                    }
+                }
+            }
+        }
+    }
+
+    private func providerRow(_ tab: ProviderTab) -> some View {
+        let isEnabled = viewModel.isProviderEnabled(tab)
+        let isExpanded = expandedProvider == tab
+        let hasWarning = pathWarning(for: tab) != nil
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Toggle("", isOn: providerEnabledBinding(tab))
+                    .toggleStyle(.switch)
+                    .scaleEffect(0.75)
+                    .labelsHidden()
+
+                Image(systemName: providerIcon(tab.systemImage, hidesProviderNames: viewModel.hidesProviderNames))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isEnabled ? .primary : .secondary)
+                    .frame(width: 18)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(providerName(tab.displayName, privateName: tab.privateName, hidesProviderNames: viewModel.hidesProviderNames))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isEnabled ? .primary : .secondary)
+                    if hasWarning {
+                        Text("Needs attention")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.orange)
+                    } else if isEnabled {
+                        Text(pathLabel(for: tab))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        expandedProvider = isExpanded ? nil : tab
+                    }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .disabled(!isEnabled)
+            }
+            .padding(.vertical, 4)
+
+            if isExpanded, isEnabled {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        TextField(pathPlaceholder(for: tab), text: pathBinding(for: tab))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.caption)
+
+                        Button {
+                            choosePath(for: tab)
+                        } label: {
+                            Image(systemName: "folder")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Choose file")
+
+                        Button {
+                            resetProviderPath(tab)
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Reset to default")
+                    }
+
+                    if let warning = pathWarning(for: tab) {
+                        StatusLine(icon: "exclamationmark.triangle", color: .orange, text: warning)
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 34)
+                .padding(.bottom, 4)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.secondary.opacity(0.06))
+        )
+    }
+
+    // MARK: - OpenCode Go Auth
+
+    private var openCodeGoAuthSection: some View {
+        SectionBlock {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    settingsSectionHeader(
+                        title: providerName("OpenCode Go", privateName: "Provider 4", hidesProviderNames: viewModel.hidesProviderNames),
+                        systemImage: providerIcon("key", hidesProviderNames: viewModel.hidesProviderNames),
+                        detail: nil
+                    )
+                    Spacer()
+                    Button {
+                        openOpenCodeGoDashboard()
+                    } label: {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Open dashboard")
+                }
+
+                Text("Paste your workspace ID and browser auth cookie to track usage from the web dashboard.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 6) {
+                    TextField("Workspace ID or dashboard URL", text: $openCodeGoWorkspaceInput)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+
+                    SecureField("Auth cookie", text: $openCodeGoAuthCookieInput)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                }
+
+                HStack {
+                    Button {
+                        reloadOpenCodeGoDashboardConfig()
+                    } label: {
+                        Label("Reload", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+
+                    Spacer()
+
+                    Button {
+                        saveOpenCodeGoDashboardConfig()
+                    } label: {
+                        Label("Save & refresh", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .disabled(!canSaveOpenCodeGoDashboardConfig)
+                }
+
+                if let openCodeGoSetupMessage {
+                    StatusLine(
+                        icon: openCodeGoSetupMessageIsError ? "exclamationmark.triangle" : "checkmark.circle",
+                        color: openCodeGoSetupMessageIsError ? .orange : .green,
+                        text: openCodeGoSetupMessage
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Menu Bar
+
+    private var menuBarSection: some View {
+        SectionBlock {
+            VStack(alignment: .leading, spacing: 10) {
+                settingsSectionHeader(
+                    title: "Menu bar",
+                    systemImage: "menubar.rectangle",
+                    detail: nil
+                )
+
+                Picker("Display mode", selection: menuBarDisplayBinding) {
+                    Text("Logos").tag(MenuBarDisplay.logos)
+                    Text("Countdowns").tag(MenuBarDisplay.countdowns)
+                    Text("Hidden").tag(MenuBarDisplay.hidden)
+                }
+                .pickerStyle(.segmented)
+                .font(.caption.weight(.semibold))
+
+                Text(menuBarDisplayDescription)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var menuBarDisplayDescription: String {
+        switch viewModel.configuration.privacy.menuBarDisplay {
+        case .logos: return "Colored progress rings with provider icons."
+        case .countdowns: return "Compact pills with time-remaining text."
+        case .hidden: return "Anonymizes provider names throughout the UI."
+        }
+    }
+
+    // MARK: - Reset
+
+    private var resetSection: some View {
+        HStack {
+            Button("Reset all settings") {
+                viewModel.resetConfigurationToDefaults()
+                selectedTab = .overview
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            Spacer()
+            Text("Saved automatically")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    // MARK: - First launch
 
     private var firstLaunchSetupView: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -104,124 +290,59 @@ struct SettingsSectionView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(8)
+        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.accentColor.opacity(0.09))
         )
     }
 
-    private var openCodeGoDashboardConfigView: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Image(systemName: providerIcon("key", hidesProviderNames: viewModel.hidesProviderNames))
-                    .font(.system(size: 11, weight: .semibold))
+    // MARK: - Helpers
+
+    private func settingsSectionHeader(title: String, systemImage: String, detail: String?) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+            if let detail {
+                Text(detail)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                Text(providerName("OpenCode Go dashboard", privateName: "Provider 4 dashboard", hidesProviderNames: viewModel.hidesProviderNames))
-                    .font(.caption.weight(.semibold))
-                Spacer()
-                Button {
-                    openOpenCodeGoDashboard()
-                } label: {
-                    Label("Open", systemImage: "globe")
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-            }
-
-            TextField("Workspace ID or dashboard url", text: $openCodeGoWorkspaceInput)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-
-            SecureField("auth cookie", text: $openCodeGoAuthCookieInput)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-
-            HStack {
-                Button {
-                    reloadOpenCodeGoDashboardConfig()
-                } label: {
-                    Label("Reload", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-
-                Spacer()
-
-                Button {
-                    saveOpenCodeGoDashboardConfig()
-                } label: {
-                    Label("Save & refresh", systemImage: "square.and.arrow.down")
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-                .disabled(!canSaveOpenCodeGoDashboardConfig)
-            }
-
-            if let openCodeGoSetupMessage {
-                StatusLine(
-                    icon: openCodeGoSetupMessageIsError ? "exclamationmark.triangle" : "checkmark.circle",
-                    color: openCodeGoSetupMessageIsError ? .orange : .green,
-                    text: openCodeGoSetupMessage
-                )
             }
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.secondary.opacity(0.07))
-        )
     }
 
-    private func settingsProviderRow(
-        tab: ProviderTab,
-        pathTitle: String,
-        path: Binding<String>,
-        isEnabled: Binding<Bool>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Toggle("", isOn: isEnabled)
-                    .toggleStyle(.checkbox)
-                    .labelsHidden()
-                Image(systemName: providerIcon(tab.systemImage, hidesProviderNames: viewModel.hidesProviderNames))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                Text(providerName(tab.displayName, privateName: tab.privateName, hidesProviderNames: viewModel.hidesProviderNames))
-                    .font(.caption.weight(.semibold))
-                Spacer()
-                Button("Choose...") {
-                    choosePath(for: tab)
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-                Button("Reset") {
-                    resetProviderPath(tab)
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-            }
+    private var enabledProviderCount: Int {
+        ProviderTab.providerCases.filter(viewModel.isProviderEnabled).count
+    }
 
-            Text(pathTitle)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            TextField(pathTitle, text: path)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .disabled(!isEnabled.wrappedValue)
-
-            if let warning = pathWarning(for: tab) {
-                StatusLine(icon: "exclamationmark.triangle", color: .orange, text: warning)
-            }
+    private func pathLabel(for tab: ProviderTab) -> String {
+        switch tab {
+        case .codex: return "Executable"
+        case .cursor: return "State database"
+        case .devin: return "State database"
+        case .openCodeGo: return "Config file"
+        case .overview, .settings: return ""
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.secondary.opacity(0.07))
-        )
+    }
+
+    private func pathPlaceholder(for tab: ProviderTab) -> String {
+        pathLabel(for: tab)
+    }
+
+    private func pathBinding(for tab: ProviderTab) -> Binding<String> {
+        switch tab {
+        case .codex: return codexPathBinding
+        case .cursor: return cursorPathBinding
+        case .devin: return devinPathBinding
+        case .openCodeGo: return openCodeGoPathBinding
+        case .overview, .settings:
+            return .constant("")
+        }
     }
 
     private var codexPathBinding: Binding<String> {
