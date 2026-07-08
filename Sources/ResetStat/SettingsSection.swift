@@ -13,7 +13,7 @@ struct SettingsSectionView: View {
     @State private var expandedProvider: ProviderTab?
 
     var body: some View {
-        AlwaysVisibleScrollView {
+        ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if viewModel.configuration.setup.showsFirstLaunchSetup {
                     firstLaunchSetupView
@@ -27,7 +27,9 @@ struct SettingsSectionView: View {
                 resetSection
             }
         }
+        .scrollIndicators(.visible, axes: .vertical)
         .onAppear {
+            NSScroller.forceOverlayScrollers()
             if !didLoadConfig {
                 didLoadConfig = true
                 loadOpenCodeGoDashboardConfig()

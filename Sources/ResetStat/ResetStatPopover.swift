@@ -15,7 +15,6 @@ struct ResetStatPopover: View {
             footer
         }
         .padding(16)
-        .frame(maxHeight: 600)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: prepareSetupView)
     }
