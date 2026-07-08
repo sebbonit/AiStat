@@ -18,4 +18,6 @@ cp "$ROOT_DIR/Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/ResetStat.icns" "$APP_DIR/Contents/Resources/ResetStat.icns"
 cp "$EXECUTABLE" "$APP_DIR/Contents/MacOS/ResetStat"
 
+codesign --force --deep --sign - "$APP_DIR"
+
 echo "Built $APP_DIR"
