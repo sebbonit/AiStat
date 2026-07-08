@@ -1,6 +1,7 @@
 import Foundation
 import ResetStatCore
 import SwiftUI
+import UserNotifications
 
 @MainActor
 final class UsageViewModel: ObservableObject {
@@ -36,6 +37,7 @@ final class UsageViewModel: ObservableObject {
     private let openCodeGoService: OpenCodeGoUsageFetching?
     private var didStartLoops = false
     private var refreshingProviders: Set<ProviderTab> = []
+    private let notificationCoordinator: NotificationCoordinator
 
     convenience init(configurationStore: ResetStatConfigurationStore = ResetStatConfigurationStore()) {
         self.init(
@@ -44,7 +46,8 @@ final class UsageViewModel: ObservableObject {
             service: nil,
             cursorService: nil,
             desktopQuotaService: nil,
-            openCodeGoService: nil
+            openCodeGoService: nil,
+            notificationCoordinator: NotificationCoordinator()
         )
     }
 
@@ -53,7 +56,8 @@ final class UsageViewModel: ObservableObject {
         service: CodexUsageFetching,
         cursorService: CursorUsageFetching,
         desktopQuotaService: DesktopQuotaFetching,
-        openCodeGoService: OpenCodeGoUsageFetching
+        openCodeGoService: OpenCodeGoUsageFetching,
+        notificationCoordinator: NotificationCoordinator = NotificationCoordinator()
     ) {
         self.configurationStore = nil
         self.configuration = configuration
@@ -61,6 +65,7 @@ final class UsageViewModel: ObservableObject {
         self.cursorService = cursorService
         self.desktopQuotaService = desktopQuotaService
         self.openCodeGoService = openCodeGoService
+        self.notificationCoordinator = notificationCoordinator
     }
 
     private init(
@@ -69,7 +74,8 @@ final class UsageViewModel: ObservableObject {
         service: CodexUsageFetching?,
         cursorService: CursorUsageFetching?,
         desktopQuotaService: DesktopQuotaFetching?,
-        openCodeGoService: OpenCodeGoUsageFetching?
+        openCodeGoService: OpenCodeGoUsageFetching?,
+        notificationCoordinator: NotificationCoordinator
     ) {
         self.configurationStore = configurationStore
         self.configuration = configuration
@@ -77,6 +83,7 @@ final class UsageViewModel: ObservableObject {
         self.cursorService = cursorService
         self.desktopQuotaService = desktopQuotaService
         self.openCodeGoService = openCodeGoService
+        self.notificationCoordinator = notificationCoordinator
     }
 
     func start() {
@@ -119,6 +126,39 @@ final class UsageViewModel: ObservableObject {
                 openCodeGoState = .disabled
                 openCodeGoSnapshot = nil
             }
+        }
+        await evaluateNotifications()
+    }
+
+    private func evaluateNotifications() async {
+        let loadStates: [ProviderTab: LoadState] = [
+            .codex: state,
+            .cursor: cursorState,
+            .devin: desktopQuotaState,
+            .openCodeGo: openCodeGoState
+        ]
+        await notificationCoordinator.evaluate(
+            summaries: providerSummaries,
+            billingExpiries: billingExpiries,
+            loadStates: loadStates,
+            configuration: configuration.notifications,
+            hidesProviderNames: hidesProviderNames,
+            now: now
+        )
+    }
+
+    func setNotificationsEnabled(_ enabled: Bool) {
+        updateConfiguration { $0.notifications.enabled = enabled }
+        if enabled {
+            Task { await requestNotificationAuthorization() }
+        }
+    }
+
+    private func requestNotificationAuthorization() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
         }
     }
 
