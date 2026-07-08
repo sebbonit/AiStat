@@ -23,6 +23,7 @@ struct SettingsSectionView: View {
                 openCodeGoAuthSection
                 menuBarSection
                 refreshSection
+                notificationsSection
                 resetSection
             }
         }
@@ -337,6 +338,83 @@ struct SettingsSectionView: View {
         )
     }
 
+    // MARK: - Notifications
+
+    private var notificationsSection: some View {
+        SectionBlock {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    settingsSectionHeader(
+                        title: "Notifications",
+                        systemImage: "bell",
+                        detail: nil
+                    )
+                    Toggle("", isOn: notificationsEnabledBinding)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .scaleEffect(0.75)
+                }
+
+                if viewModel.configuration.notifications.enabled {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("Critical usage", isOn: notificationsCriticalBinding)
+                            .font(.caption2)
+                        Toggle("Billing expiring", isOn: notificationsBillingBinding)
+                            .font(.caption2)
+                        Toggle("Provider unavailable", isOn: notificationsUnavailableBinding)
+                            .font(.caption2)
+
+                        Divider()
+
+                        Text("Per provider")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 12) {
+                            notificationProviderToggle(.codex, label: "Codex")
+                            notificationProviderToggle(.cursor, label: "Cursor")
+                            notificationProviderToggle(.devin, label: "Devin")
+                            notificationProviderToggle(.openCodeGo, label: "Go")
+                        }
+
+                        Divider()
+
+                        HStack(spacing: 8) {
+                            Text("Quiet hours")
+                                .font(.caption2.weight(.semibold))
+                            Spacer()
+                            Picker("Start", selection: quietHoursStartBinding) {
+                                Text("Off").tag(-1)
+                                ForEach(0..<24, id: \.self) { hour in
+                                    Text("\(hour):00").tag(hour)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .font(.caption2)
+                            .frame(width: 65)
+                            Picker("End", selection: quietHoursEndBinding) {
+                                Text("Off").tag(-1)
+                                ForEach(0..<24, id: \.self) { hour in
+                                    Text("\(hour):00").tag(hour)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .font(.caption2)
+                            .frame(width: 65)
+                            .disabled(viewModel.configuration.notifications.quietHoursStartHour == nil)
+                        }
+                    }
+                    .padding(.leading, 26)
+                }
+            }
+        }
+    }
+
+    private func notificationProviderToggle(_ tab: ProviderTab, label: String) -> some View {
+        Toggle(label, isOn: notificationPerProviderBinding(tab))
+            .font(.caption2)
+    }
+
     // MARK: - Helpers
 
     private func settingsSectionHeader(title: String, systemImage: String, detail: String?) -> some View {
@@ -453,6 +531,81 @@ struct SettingsSectionView: View {
             get: { viewModel.configuration.refresh.maxRetryAttempts },
             set: { value in
                 viewModel.updateConfiguration { $0.refresh.maxRetryAttempts = value }
+            }
+        )
+    }
+
+    private var notificationsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.configuration.notifications.enabled },
+            set: { value in viewModel.setNotificationsEnabled(value) }
+        )
+    }
+
+    private var notificationsCriticalBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.configuration.notifications.criticalUsage },
+            set: { value in viewModel.updateConfiguration { $0.notifications.criticalUsage = value } }
+        )
+    }
+
+    private var notificationsBillingBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.configuration.notifications.billingExpiring },
+            set: { value in viewModel.updateConfiguration { $0.notifications.billingExpiring = value } }
+        )
+    }
+
+    private var notificationsUnavailableBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.configuration.notifications.providerUnavailable },
+            set: { value in viewModel.updateConfiguration { $0.notifications.providerUnavailable = value } }
+        )
+    }
+
+    private func notificationPerProviderBinding(_ tab: ProviderTab) -> Binding<Bool> {
+        Binding(
+            get: {
+                switch tab {
+                case .codex: return viewModel.configuration.notifications.perProvider.codex
+                case .cursor: return viewModel.configuration.notifications.perProvider.cursor
+                case .devin: return viewModel.configuration.notifications.perProvider.devin
+                case .openCodeGo: return viewModel.configuration.notifications.perProvider.openCodeGo
+                case .overview, .settings: return false
+                }
+            },
+            set: { value in
+                viewModel.updateConfiguration {
+                    switch tab {
+                    case .codex: $0.notifications.perProvider.codex = value
+                    case .cursor: $0.notifications.perProvider.cursor = value
+                    case .devin: $0.notifications.perProvider.devin = value
+                    case .openCodeGo: $0.notifications.perProvider.openCodeGo = value
+                    case .overview, .settings: break
+                    }
+                }
+            }
+        )
+    }
+
+    private var quietHoursStartBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.configuration.notifications.quietHoursStartHour ?? -1 },
+            set: { value in
+                viewModel.updateConfiguration {
+                    $0.notifications.quietHoursStartHour = value >= 0 ? value : nil
+                }
+            }
+        )
+    }
+
+    private var quietHoursEndBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.configuration.notifications.quietHoursEndHour ?? -1 },
+            set: { value in
+                viewModel.updateConfiguration {
+                    $0.notifications.quietHoursEndHour = value >= 0 ? value : nil
+                }
             }
         )
     }
