@@ -23,6 +23,7 @@ struct SettingsSectionView: View {
             menuBarSection
             refreshSection
             notificationsSection
+            diagnosticsSection
             resetSection
         }
         .onAppear {
@@ -302,6 +303,137 @@ struct SettingsSectionView: View {
                         .font(.caption)
                 }
             }
+        }
+    }
+
+    // MARK: - Diagnostics
+
+    private var diagnosticsSection: some View {
+        SectionBlock {
+            VStack(alignment: .leading, spacing: 10) {
+                settingsSectionHeader(
+                    title: "Diagnostics",
+                    systemImage: "stethoscope",
+                    detail: nil
+                )
+
+                VStack(spacing: 6) {
+                    ForEach(ProviderTab.providerCases) { tab in
+                        if viewModel.isProviderEnabled(tab) {
+                            diagnosticRow(tab)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func diagnosticRow(_ tab: ProviderTab) -> some View {
+        let loadState = viewModel.currentLoadState(for: tab)
+        let lastFetch = viewModel.lastFetchAt[tab]
+        let lastError = viewModel.lastErrors[tab]
+        let pathExists = viewModel.providerPathExists(for: tab)
+        let testResult = viewModel.diagnosticTestResults[tab]
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                Image(systemName: providerIcon(tab.systemImage, hidesProviderNames: viewModel.hidesProviderNames))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 18)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(providerName(tab.displayName, privateName: tab.privateName, hidesProviderNames: viewModel.hidesProviderNames))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 8) {
+                        statusDot(for: loadState, pathExists: pathExists)
+                        Text(diagnosticStatusText(for: loadState, pathExists: pathExists))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    viewModel.testProviderConnection(tab)
+                } label: {
+                    Label("Test", systemImage: "bolt")
+                }
+                .buttonStyle(.borderless)
+                .font(.caption2)
+                .disabled(viewModel.isProviderRefreshing(tab))
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                diagnosticDetailRow(label: "Last fetch", value: lastFetch.map { UsageFormatting.resetText(date: $0, now: viewModel.now) } ?? "Never")
+                diagnosticDetailRow(label: "Path", value: pathExists ? "Found" : "Missing")
+                if let lastError {
+                    diagnosticDetailRow(label: "Error", value: lastError, color: .red)
+                }
+                if let testResult {
+                    diagnosticDetailRow(
+                        label: "Test",
+                        value: "\(testResult.succeeded ? "OK" : "Failed") · \(testResult.elapsedMillis)ms",
+                        color: testResult.succeeded ? .green : .red
+                    )
+                    if !testResult.succeeded {
+                        Text(testResult.message)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .padding(.leading, 34)
+                    }
+                }
+            }
+            .padding(.leading, 34)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.secondary.opacity(0.06))
+        )
+    }
+
+    private func statusDot(for loadState: UsageViewModel.LoadState, pathExists: Bool) -> some View {
+        let color: Color = {
+            if !pathExists { return .orange }
+            switch loadState {
+            case .loaded: return .green
+            case .failed: return .red
+            case .disabled: return .secondary
+            case .idle, .loading: return .secondary
+            }
+        }()
+        return Circle()
+            .fill(color)
+            .frame(width: 6, height: 6)
+    }
+
+    private func diagnosticStatusText(for loadState: UsageViewModel.LoadState, pathExists: Bool) -> String {
+        if !pathExists { return "Path missing" }
+        switch loadState {
+        case .loaded: return "Connected"
+        case .failed: return "Failed"
+        case .disabled: return "Disabled"
+        case .idle: return "Idle"
+        case .loading: return "Loading"
+        }
+    }
+
+    private func diagnosticDetailRow(label: String, value: String, color: Color = .secondary) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .frame(width: 40, alignment: .leading)
+            Text(value)
+                .font(.system(size: 9))
+                .foregroundStyle(color)
+                .lineLimit(1)
         }
     }
 
