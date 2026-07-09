@@ -156,7 +156,7 @@ struct SettingsSectionView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     settingsSectionHeader(
-                        title: providerName("OpenCode Go", privateName: "Provider 4", hidesProviderNames: viewModel.hidesProviderNames),
+                        title: openCodeGoDisplayName,
                         systemImage: providerIcon("key", hidesProviderNames: viewModel.hidesProviderNames),
                         detail: nil
                     )
@@ -480,7 +480,7 @@ struct SettingsSectionView: View {
                 .font(.caption)
             }
 
-            Text("Detected providers are ready. Add OpenCode Go auth below or finish with the current setup.")
+            Text("Detected providers are ready. Add \(providerName("OpenCode Go", privateName: "Provider 4", hidesProviderNames: viewModel.hidesProviderNames)) auth below or finish with the current setup.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -643,8 +643,11 @@ struct SettingsSectionView: View {
     }
 
     private func notificationProviderToggle(_ tab: ProviderTab, label: String) -> some View {
-        Toggle(label, isOn: notificationPerProviderBinding(tab))
-            .font(.caption2)
+        Toggle(
+            providerName(label, privateName: tab.privateName, hidesProviderNames: viewModel.hidesProviderNames),
+            isOn: notificationPerProviderBinding(tab)
+        )
+        .font(.caption2)
     }
 
     private func notificationThresholdRow(_ tab: ProviderTab, label: String) -> some View {
@@ -1097,17 +1100,19 @@ struct SettingsSectionView: View {
     }
 
     private func reloadOpenCodeGoDashboardConfig() {
+        let name = openCodeGoDisplayName
         guard let credentials = OpenCodeGoDashboardConfigFile.loadIfPresent(from: openCodeGoConfigURL) else {
-            showOpenCodeGoSetupMessage("No saved OpenCode Go config found.", isError: true)
+            showOpenCodeGoSetupMessage("No saved \(name) config found.", isError: true)
             return
         }
 
         openCodeGoWorkspaceInput = credentials.workspaceId
         openCodeGoAuthCookieInput = credentials.authCookie
-        showOpenCodeGoSetupMessage("Loaded saved OpenCode Go config.", isError: false)
+        showOpenCodeGoSetupMessage("Loaded saved \(name) config.", isError: false)
     }
 
     private func saveOpenCodeGoDashboardConfig() {
+        let name = openCodeGoDisplayName
         do {
             let credentials = try OpenCodeGoDashboardCredentials(
                 workspaceInput: openCodeGoWorkspaceInput,
@@ -1121,13 +1126,17 @@ struct SettingsSectionView: View {
                 configuration.providers.openCodeGo.isEnabled = true
                 configuration.setup.showsFirstLaunchSetup = false
             }
-            showOpenCodeGoSetupMessage("Saved OpenCode Go config.", isError: false)
+            showOpenCodeGoSetupMessage("Saved \(name) config.", isError: false)
             Task { await viewModel.refresh() }
         } catch let error as LocalizedError {
-            showOpenCodeGoSetupMessage(error.errorDescription ?? "OpenCode Go config could not be saved.", isError: true)
+            showOpenCodeGoSetupMessage(error.errorDescription ?? "\(name) config could not be saved.", isError: true)
         } catch {
-            showOpenCodeGoSetupMessage("OpenCode Go config could not be saved.", isError: true)
+            showOpenCodeGoSetupMessage("\(name) config could not be saved.", isError: true)
         }
+    }
+
+    private var openCodeGoDisplayName: String {
+        providerName("OpenCode Go", privateName: "Provider 4", hidesProviderNames: viewModel.hidesProviderNames)
     }
 
     private func openOpenCodeGoDashboard() {
