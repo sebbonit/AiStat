@@ -56,3 +56,12 @@ struct MenuBarStatusSnapshot: Equatable {
     let menuBarDisplay: MenuBarDisplay
 }
 
+struct DiagnosticTestResult: Equatable, Identifiable {
+    let timestamp: Date
+    let succeeded: Bool
+    let message: String
+    let elapsedMillis: Int
+
+    var id: String { "\(timestamp.timeIntervalSince1970)" }
+}
+

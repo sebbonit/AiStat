@@ -27,6 +27,8 @@ final class UsageViewModel: ObservableObject {
     @Published var now = Date()
     @Published private(set) var lastFetchAt: [ProviderTab: Date] = [:]
     @Published private(set) var paceProjections: [ProviderTab: PaceProjection] = [:]
+    @Published private(set) var lastErrors: [ProviderTab: String] = [:]
+    @Published private(set) var diagnosticTestResults: [ProviderTab: DiagnosticTestResult] = [:]
 
     private struct PaceSample {
         let percentUsed: Double
@@ -308,10 +310,13 @@ final class UsageViewModel: ObservableObject {
             state = .loaded
             lastFetchAt[.codex] = Date()
             updatePaceProjection(for: .codex)
+            lastErrors[.codex] = nil
         } catch let error as CodexUsageError {
             state = .failed(error.localizedDescription)
+            lastErrors[.codex] = error.localizedDescription
         } catch {
             state = .failed("Usage data is temporarily unavailable.")
+            lastErrors[.codex] = "Usage data is temporarily unavailable."
         }
     }
 
@@ -328,10 +333,13 @@ final class UsageViewModel: ObservableObject {
             cursorState = .loaded
             lastFetchAt[.cursor] = Date()
             updatePaceProjection(for: .cursor)
+            lastErrors[.cursor] = nil
         } catch let error as CursorUsageError {
             cursorState = .failed(error.localizedDescription)
+            lastErrors[.cursor] = error.localizedDescription
         } catch {
             cursorState = .failed("Cursor usage is temporarily unavailable.")
+            lastErrors[.cursor] = "Cursor usage is temporarily unavailable."
         }
     }
 
@@ -347,12 +355,16 @@ final class UsageViewModel: ObservableObject {
             let snapshots = try await withRetry { try await desktopQuotaUsageService().fetchSnapshots() }
             desktopQuotaSnapshots = snapshots
             desktopQuotaState = snapshots.isEmpty ? .failed("Devin quota cache unavailable.") : .loaded
-            lastFetchAt[.devin] = Date()
             if !snapshots.isEmpty {
+                lastFetchAt[.devin] = Date()
                 updatePaceProjection(for: .devin)
+                lastErrors[.devin] = nil
+            } else {
+                lastErrors[.devin] = "Devin quota cache unavailable."
             }
         } catch {
             desktopQuotaState = .failed("Devin quotas are temporarily unavailable.")
+            lastErrors[.devin] = "Devin quotas are temporarily unavailable."
         }
     }
 
@@ -369,10 +381,13 @@ final class UsageViewModel: ObservableObject {
             openCodeGoState = .loaded
             lastFetchAt[.openCodeGo] = Date()
             updatePaceProjection(for: .openCodeGo)
+            lastErrors[.openCodeGo] = nil
         } catch let error as CodexUsageError {
             openCodeGoState = .failed(error.localizedDescription)
+            lastErrors[.openCodeGo] = error.localizedDescription
         } catch {
             openCodeGoState = .failed("OpenCode Go usage is temporarily unavailable.")
+            lastErrors[.openCodeGo] = "OpenCode Go usage is temporarily unavailable."
         }
     }
 
@@ -447,24 +462,28 @@ final class UsageViewModel: ObservableObject {
             snapshot = nil
             paceProjections[.codex] = nil
             previousPaceSamples[.codex] = nil
+            lastErrors[.codex] = nil
         }
         if !configuration.providers.cursor.isEnabled {
             cursorState = .disabled
             cursorSnapshot = nil
             paceProjections[.cursor] = nil
             previousPaceSamples[.cursor] = nil
+            lastErrors[.cursor] = nil
         }
         if !configuration.providers.devin.isEnabled {
             desktopQuotaState = .disabled
             desktopQuotaSnapshots = []
             paceProjections[.devin] = nil
             previousPaceSamples[.devin] = nil
+            lastErrors[.devin] = nil
         }
         if !configuration.providers.openCodeGo.isEnabled {
             openCodeGoState = .disabled
             openCodeGoSnapshot = nil
             paceProjections[.openCodeGo] = nil
             previousPaceSamples[.openCodeGo] = nil
+            lastErrors[.openCodeGo] = nil
         }
     }
 
@@ -488,6 +507,56 @@ final class UsageViewModel: ObservableObject {
             paceProjections[tab] = projection
         }
         previousPaceSamples[tab] = PaceSample(percentUsed: percent, timestamp: now)
+    }
+
+    func testProviderConnection(_ tab: ProviderTab) {
+        let start = Date()
+        Task {
+            await refreshProvider(tab)
+            let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+            let loadState = currentLoadState(for: tab)
+            let result: DiagnosticTestResult
+            switch loadState {
+            case .loaded:
+                result = DiagnosticTestResult(timestamp: Date(), succeeded: true, message: "Connected successfully", elapsedMillis: elapsed)
+            case .failed(let message):
+                result = DiagnosticTestResult(timestamp: Date(), succeeded: false, message: message, elapsedMillis: elapsed)
+            case .disabled:
+                result = DiagnosticTestResult(timestamp: Date(), succeeded: false, message: "Provider is disabled", elapsedMillis: elapsed)
+            case .idle, .loading:
+                result = DiagnosticTestResult(timestamp: Date(), succeeded: false, message: "Test did not complete", elapsedMillis: elapsed)
+            }
+            diagnosticTestResults[tab] = result
+        }
+    }
+
+    func currentLoadState(for tab: ProviderTab) -> LoadState {
+        switch tab {
+        case .codex: return state
+        case .cursor: return cursorState
+        case .devin: return desktopQuotaState
+        case .openCodeGo: return openCodeGoState
+        case .overview, .settings: return .idle
+        }
+    }
+
+    func providerPath(for tab: ProviderTab) -> String {
+        switch tab {
+        case .codex: return configuration.providers.codex.executablePath
+        case .cursor: return configuration.providers.cursor.stateDatabasePath
+        case .devin: return configuration.providers.devin.stateDatabasePath
+        case .openCodeGo: return configuration.providers.openCodeGo.configPath
+        case .overview, .settings: return ""
+        }
+    }
+
+    func providerPathExists(for tab: ProviderTab) -> Bool {
+        let path = providerPath(for: tab)
+        guard !path.isEmpty else { return false }
+        if tab == .codex {
+            return FileManager.default.fileExists(atPath: path) && FileManager.default.isExecutableFile(atPath: path)
+        }
+        return FileManager.default.fileExists(atPath: path)
     }
 
     private func refreshLoop() async {
