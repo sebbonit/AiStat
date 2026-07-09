@@ -251,6 +251,115 @@ struct LimitLensCoreTests {
         #expect(OpenCodeGoBillingParser.billing(from: html) == nil)
     }
 
+    @Test("Estimates next payment date from two monthly payments")
+    func estimatesNextPaymentDateFromTwoPayments() {
+        let now = Date(timeIntervalSince1970: 1_782_949_902) // Jul 1, 2026 23:51 UTC
+        let lastDate = now
+        let previousDate = lastDate.addingTimeInterval(-30 * 86_400) // ~Jun 1
+        let billing = OpenCodeGoBilling(
+            balanceText: nil,
+            cardLast4: nil,
+            autoReloadEnabled: false,
+            payments: [
+                OpenCodeGoPayment(id: "p1", amountText: "$10", date: lastDate, dateText: "", refunded: false),
+                OpenCodeGoPayment(id: "p2", amountText: "$10", date: previousDate, dateText: "", refunded: false)
+            ]
+        )
+        let next = billing.nextPaymentDate
+        #expect(next != nil)
+        // 30-day gap snaps to 30-day monthly cycle
+        #expect(next == lastDate.addingTimeInterval(30 * 86_400))
+    }
+
+    @Test("Snaps 61-day gap to monthly cycle instead of using raw gap")
+    func snapsLargeGapToMonthlyCycle() {
+        // Simulates the user's real data: Jul 2 and May 2 (61-day gap, missing June payment)
+        let lastDate = Date(timeIntervalSince1970: 1_782_949_902) // Jul 1, 2026
+        let previousDate = lastDate.addingTimeInterval(-61 * 86_400) // May 1, 2026
+        let billing = OpenCodeGoBilling(
+            balanceText: nil,
+            cardLast4: nil,
+            autoReloadEnabled: false,
+            payments: [
+                OpenCodeGoPayment(id: "p1", amountText: "$10", date: lastDate, dateText: "", refunded: false),
+                OpenCodeGoPayment(id: "p2", amountText: "$10", date: previousDate, dateText: "", refunded: false)
+            ]
+        )
+        let next = billing.nextPaymentDate
+        #expect(next != nil)
+        // 61 days ≈ 2×30 → snaps to 30-day cycle, not 61-day raw gap
+        #expect(next == lastDate.addingTimeInterval(30 * 86_400))
+        // Should NOT be 61 days later
+        #expect(next != lastDate.addingTimeInterval(61 * 86_400))
+    }
+
+    @Test("Advances next payment date into the future when last payment is old")
+    func advancesNextPaymentDateIntoFuture() {
+        let now = Date()
+        let lastDate = now.addingTimeInterval(-70 * 86_400) // 70 days ago
+        let previousDate = lastDate.addingTimeInterval(-30 * 86_400) // 100 days ago
+        let billing = OpenCodeGoBilling(
+            balanceText: nil,
+            cardLast4: nil,
+            autoReloadEnabled: false,
+            payments: [
+                OpenCodeGoPayment(id: "p1", amountText: "$10", date: lastDate, dateText: "", refunded: false),
+                OpenCodeGoPayment(id: "p2", amountText: "$10", date: previousDate, dateText: "", refunded: false)
+            ]
+        )
+        let next = billing.nextPaymentDate
+        #expect(next != nil)
+        #expect(next! > now)
+    }
+
+    @Test("Falls back to 30-day interval with a single payment")
+    func fallsBackTo30DayIntervalWithSinglePayment() {
+        let lastDate = Date().addingTimeInterval(-10 * 86_400) // 10 days ago
+        let billing = OpenCodeGoBilling(
+            balanceText: nil,
+            cardLast4: nil,
+            autoReloadEnabled: false,
+            payments: [
+                OpenCodeGoPayment(id: "p1", amountText: "$10", date: lastDate, dateText: "", refunded: false)
+            ]
+        )
+        let next = billing.nextPaymentDate
+        #expect(next != nil)
+        // 10 days ago + 30 days = 20 days from now
+        let expected = lastDate.addingTimeInterval(30 * 86_400)
+        #expect(next == expected)
+    }
+
+    @Test("Returns nil next payment date when no valid payments exist")
+    func returnsNilNextPaymentDateWhenNoPayments() {
+        let billing = OpenCodeGoBilling(
+            balanceText: "$5.00",
+            cardLast4: "1234",
+            autoReloadEnabled: false,
+            payments: []
+        )
+        #expect(billing.nextPaymentDate == nil)
+    }
+
+    @Test("Ignores refunded payments when estimating next payment date")
+    func ignoresRefundedPaymentsWhenEstimating() {
+        let now = Date()
+        let lastDate = now.addingTimeInterval(-10 * 86_400)
+        let billing = OpenCodeGoBilling(
+            balanceText: nil,
+            cardLast4: nil,
+            autoReloadEnabled: false,
+            payments: [
+                OpenCodeGoPayment(id: "p1", amountText: "$10", date: lastDate, dateText: "", refunded: true),
+                OpenCodeGoPayment(id: "p2", amountText: "$10", date: lastDate.addingTimeInterval(-30 * 86_400), dateText: "", refunded: false)
+            ]
+        )
+        // The only non-refunded payment is p2 (40 days ago), so next = p2 + 30d = 10 days ago → advance to +30d = 20 days from now
+        let next = billing.nextPaymentDate
+        #expect(next != nil)
+        #expect(next! > now)
+    }
+
     @Test("Decodes backend reset-credit expirations")
     func decodesBackendResetCreditExpirations() throws {
         let response = try decodeFixture("reset_credits_backend", as: BackendResetCreditsResponse.self, decoder: .resetStatBackend)

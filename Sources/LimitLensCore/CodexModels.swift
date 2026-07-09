@@ -356,4 +356,51 @@ public struct OpenCodeGoBilling: Equatable, Sendable {
     public var hasData: Bool {
         balanceText != nil || cardLast4 != nil || !payments.isEmpty
     }
+
+    /// Estimates the next billing date from payment history.
+    ///
+    /// Computes all consecutive gaps between non-refunded payments, snaps each to
+    /// the nearest common billing cycle (monthly ~30d, weekly ~7d, daily), and uses
+    /// the smallest snapped gap as the billing interval. Falls back to 30 days when
+    /// no gaps are available. Then advances from the last payment date into the future.
+    public var nextPaymentDate: Date? {
+        let validPayments = payments.filter { !$0.refunded }
+        guard let last = validPayments.first, let lastDate = last.date else { return nil }
+
+        let sortedDates = validPayments.compactMap(\.date).sorted(by: >)
+        let rawGaps = zip(sortedDates, sortedDates.dropFirst())
+            .map { $0.timeIntervalSince($1) }
+            .filter { $0 > 0 }
+
+        let interval: TimeInterval
+        if rawGaps.isEmpty {
+            interval = 30 * 86_400
+        } else {
+            interval = rawGaps.map { Self.snapToBillingCycle($0) }.min() ?? 30 * 86_400
+        }
+
+        var next = lastDate.addingTimeInterval(interval)
+        let now = Date()
+        while next < now {
+            next = next.addingTimeInterval(interval)
+        }
+        return next
+    }
+
+    /// Snaps a raw gap to the nearest common billing cycle if it's approximately
+    /// a whole multiple of that cycle (within 2 days tolerance).
+    /// E.g. 61 days → 30 days (2× monthly), 14 days → 7 days (2× weekly).
+    private static func snapToBillingCycle(_ raw: TimeInterval) -> TimeInterval {
+        let day: TimeInterval = 86_400
+        let days = raw / day
+
+        for cycle in [30.0, 7.0, 1.0] {
+            let multiple = days / cycle
+            let rounded = multiple.rounded()
+            if rounded >= 1 && abs(days - rounded * cycle) <= 2 {
+                return cycle * day
+            }
+        }
+        return raw
+    }
 }

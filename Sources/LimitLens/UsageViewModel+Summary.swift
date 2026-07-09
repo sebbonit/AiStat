@@ -107,9 +107,12 @@ extension UsageViewModel {
         let billing = openCodeGoSnapshot?.billing
         let lastPayment = billing?.lastPayment
         let balance = billing?.balanceText
+        let nextDate = billing?.nextPaymentDate
 
         let label: String
-        if lastPayment != nil {
+        if nextDate != nil {
+            label = "Next payment"
+        } else if lastPayment != nil {
             label = "Last payment"
         } else if billing == nil {
             label = "No billing"
@@ -117,13 +120,20 @@ extension UsageViewModel {
             label = "No payments"
         }
 
+        let detailText: String?
+        if let lastPayment, !lastPayment.dateText.isEmpty {
+            detailText = "Last: \(lastPayment.dateText)"
+        } else {
+            detailText = balance
+        }
+
         return BillingExpiry(
             tab: .openCodeGo,
             label: label,
-            date: lastPayment?.date,
+            date: nextDate ?? lastPayment?.date,
             amountText: balance,
-            detailText: lastPayment.flatMap { $0.dateText.isEmpty ? nil : $0.dateText },
-            urgency: .unknown
+            detailText: detailText,
+            urgency: UsageFormatting.expiryUrgency(expiresAt: nextDate, now: now)
         )
     }
 
