@@ -9,8 +9,7 @@
 
 <img src="Resources/ResetStat.icns" width="96" height="96" alt="ResetStat — macOS menu bar AI usage tracker app icon" />
 
-<!-- TODO: Add screenshots -->
-<!-- <img src="docs/screenshots/menu-bar-overview.png" alt="ResetStat menu bar overview showing AI coding usage for Codex, Cursor, Devin, and OpenCode Go" width="460" /> -->
+![ResetStat popover overview showing AI coding usage for Codex, Cursor, Devin, and OpenCode Go with progress bars, billing info, and pace projections](docs/screenshots/popover-overview.png)
 
 ---
 
@@ -127,9 +126,6 @@ Colored progress rings with provider icons inside. Each ring shows usage as a cl
 - **Green/blue gradients** for low usage (< 50%)
 - **Orange** for moderate usage (50–70%)
 - **Red** for critical usage (≥ 70%)
-
-<!-- TODO: Add screenshot -->
-<!-- <img src="docs/screenshots/menu-bar-logos.png" alt="ResetStat menu bar in logos mode showing colored progress rings for AI coding providers" width="460" /> -->
 
 ### Countdowns
 Compact pills with time-remaining text (e.g. `1h30m`, `2d`, `now`) and progress-based colored borders that fill from left to right as usage grows.
