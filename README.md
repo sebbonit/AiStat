@@ -7,8 +7,6 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests: 104](https://img.shields.io/badge/tests-104-brightgreen.svg)](#testing)
 
-<img src="Resources/ResetStat.icns" width="96" height="96" alt="ResetStat — macOS menu bar AI usage tracker app icon" />
-
 ![ResetStat popover overview showing AI coding usage for Codex, Cursor, Devin, and OpenCode Go with progress bars, billing info, and pace projections](docs/screenshots/popover-overview.png)
 
 ---
@@ -16,12 +14,8 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Supported AI Coding Providers](#supported-ai-coding-providers)
+- [Supported Providers](#supported-providers)
 - [Features](#features)
-- [Menu Bar Display Modes](#menu-bar-display-modes)
-- [Notifications](#notifications)
-- [Usage Pace Projection](#usage-pace-projection)
-- [Provider Health Diagnostics](#provider-health-diagnostics)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Architecture](#architecture)
@@ -37,7 +31,7 @@
 
 ResetStat is a **native macOS menu bar app** (no Dock icon) that aggregates usage data from multiple AI coding assistants into a single, color-coded popover. It runs quietly in the background, fetching usage data on a configurable interval and rendering live progress rings, countdown timers, and detailed metrics directly in your menu bar.
 
-**Who is it for?** Developers who use multiple AI coding tools (Codex, Cursor, Devin, OpenCode Go) and want to avoid hitting rate limits or billing surprises. ResetStat gives you a single dashboard to monitor all of them at once.
+**Who is it for?** Developers who use multiple AI coding tools and want to avoid hitting rate limits or billing surprises. ResetStat gives you a single dashboard to monitor all of them at once.
 
 **Key design principles:**
 - **No accounts, no cloud, no telemetry** — everything runs locally on your Mac
@@ -47,9 +41,7 @@ ResetStat is a **native macOS menu bar app** (no Dock icon) that aggregates usag
 
 ---
 
-## Supported AI Coding Providers
-
-ResetStat connects to four AI coding tools and displays their usage limits, reset windows, billing cycles, and renewal dates.
+## Supported Providers
 
 | Provider | What it tracks |
 |----------|---------------|
@@ -72,34 +64,49 @@ Each provider can be individually enabled or disabled. Disabled providers are no
 - **Reset credit monitoring** — per-credit expiry tracking for Codex reset credits
 - **Token usage metrics** — lifetime tokens, peak daily, current streaks
 
-### Menu Bar Display
-- **Logos mode** — colored progress rings with provider icons
-- **Countdowns mode** — compact pills with time-remaining text (`1h30m`, `2d`, `now`)
-- **Hidden/privacy mode** — anonymizes all provider names to "Provider 1–4"
-- **Stale state indicator** — orange badge when cached data is shown after a fetch failure
+### Menu Bar Display Modes
+Three display modes, configurable from Settings:
+
+- **Logos** — colored progress rings with provider icons inside. Each ring shows usage as a clockwise arc: green/blue gradients for low usage (< 50%), orange for moderate (50–70%), red for critical (≥ 70%)
+- **Countdowns** — compact pills with time-remaining text (e.g. `1h30m`, `2d`, `now`) and progress-based colored borders that fill from left to right as usage grows
+- **Hidden** — anonymizes all provider names to "Provider 1" through "Provider 4" throughout the UI, help text, and error messages. Menu bar icons switch to a generic symbol
+
+When a provider fetch fails but cached data exists, the indicator shows a **stale** state with an orange badge and the cached severity level.
 
 ### Notifications (macOS native)
-- **Critical usage alerts** — fired when usage crosses a configurable threshold
-- **Billing expiring alerts** — notified before plans renew or expire
-- **Provider unavailable alerts** — notified when a provider can't be reached
-- **Per-provider notification toggles** — enable/disable notifications for each provider independently
-- **Custom per-provider thresholds** — set custom critical usage percentages per provider (default 90%)
-- **Daily digest notification** — once-per-day summary consolidating all providers at a configurable hour
-- **Quiet hours** — suppress notifications during specified hours (e.g. 22:00–07:00)
+ResetStat uses native macOS notifications (UserNotifications framework) to alert you about important usage events. No push servers, no cloud — all notifications are scheduled locally.
+
+| Notification | Trigger | Configurable |
+|-------------|---------|-------------|
+| **Critical usage** | Usage crosses the critical threshold (default 90%) | Per-provider custom threshold |
+| **Billing expiring** | Plan renewal within 7 days | Toggle on/off |
+| **Provider unavailable** | Provider fetch fails | Toggle on/off |
+| **Daily digest** | Once per day at a configured hour | Toggle + hour picker |
+
+Additional notification options:
+- **Per-provider toggles** — enable/disable notifications for each provider independently
+- **Custom per-provider thresholds** — set custom critical usage percentages per provider (e.g. notify when Codex hits 50% but only when Cursor hits 90%)
+- **Quiet hours** — suppress all notifications during specified hours (e.g. 22:00–07:00)
 - **Test notification button** — verify macOS notification permissions are granted
 
 ### Usage Pace Projection
-- **Linear pace projection** — predicts when you'll exhaust your quota or hit reset based on your current usage rate
-- **"On track to exhaust" warnings** — alerts if your pace will exhaust usage before the reset window
-- **"On pace to reset with X% to spare"** — reassuring message when usage is sustainable
-- **Collecting state** — shows "Collecting pace data..." while gathering the two samples needed for projection
+ResetStat computes a **linear projection** of your usage pace by comparing two consecutive usage snapshots. This tells you whether you're on track to exhaust your quota before the reset window, or if you'll reset with usage to spare.
+
+- **"On track to exhaust in ~3h"** — your current pace will exhaust the quota before reset (shown in orange)
+- **"On pace to reset with ~15% to spare"** — your usage is sustainable through the reset window
+- **"Usage stable"** — usage is not increasing or is declining
+- **"Collecting pace data..."** — shown after the first sample while waiting for a second sample to compute the projection
+
+The projection requires at least 30 seconds between samples and updates on every refresh cycle.
 
 ### Provider Health Diagnostics
-- **Last fetch timestamp** — see when each provider was last successfully fetched
-- **Connection status** — green/red/gray dot per provider (connected/failed/idle)
-- **Path validation** — checks if configured executable/database paths exist
-- **Last error display** — shows the most recent error message per provider
-- **Test connection button** — manually trigger a connection test with elapsed-time reporting
+A dedicated diagnostics section in Settings helps troubleshoot connection issues:
+
+- **Status dot** — green (connected), red (failed), orange (path missing), gray (idle/disabled)
+- **Last fetch** — timestamp of the most recent successful fetch
+- **Path validation** — checks if configured executable or database paths exist on disk
+- **Last error** — shows the most recent error message per provider
+- **Test connection** — button to manually trigger a fetch and report success/failure with elapsed time in milliseconds
 
 ### Refresh Configuration
 - **Configurable refresh interval** — 1m, 3m, 5m, 15m, 30m, or custom (1–60 min)
@@ -115,75 +122,16 @@ Each provider can be individually enabled or disabled. Disabled providers are no
 - **Reset to defaults** — one-click reset button
 - **Corrupt config recovery** — invalid configs are backed up and replaced with defaults
 
----
+### Severity System
 
-## Menu Bar Display Modes
+Menu bar indicators use four severity levels, derived from usage percentage:
 
-The menu bar indicators support three display modes, configurable from Settings:
-
-### Logos
-Colored progress rings with provider icons inside. Each ring shows usage as a clockwise arc:
-- **Green/blue gradients** for low usage (< 50%)
-- **Orange** for moderate usage (50–70%)
-- **Red** for critical usage (≥ 70%)
-
-### Countdowns
-Compact pills with time-remaining text (e.g. `1h30m`, `2d`, `now`) and progress-based colored borders that fill from left to right as usage grows.
-
-### Hidden
-Anonymizes all provider names to "Provider 1" through "Provider 4" throughout the UI, help text, and error messages. Menu bar icons switch to a generic symbol.
-
----
-
-## Notifications
-
-ResetStat uses native macOS notifications (UserNotifications framework) to alert you about important usage events. No push servers, no cloud — all notifications are scheduled locally.
-
-### Notification types
-
-| Notification | Trigger | Configurable |
-|-------------|---------|-------------|
-| **Critical usage** | Usage crosses the critical threshold (default 90%) | Per-provider custom threshold |
-| **Billing expiring** | Plan renewal within 7 days | Toggle on/off |
-| **Provider unavailable** | Provider fetch fails | Toggle on/off |
-| **Daily digest** | Once per day at a configured hour | Toggle + hour picker |
-
-### Per-provider thresholds
-
-Set custom critical usage thresholds for each provider. For example, you can be notified when Codex hits 50% but only when Cursor hits 90%.
-
-### Quiet hours
-
-Suppress all notifications during specified hours. Useful for avoiding alerts late at night or during focus sessions.
-
-### Daily digest
-
-A once-per-day summary notification that consolidates all enabled providers into a single alert. Shows critical/warning providers and any billing renewals coming soon. Configure the delivery hour in Settings.
-
----
-
-## Usage Pace Projection
-
-ResetStat computes a **linear projection** of your usage pace by comparing two consecutive usage snapshots. This tells you whether you're on track to exhaust your quota before the reset window, or if you'll reset with usage to spare.
-
-- **"On track to exhaust in ~3h"** — your current pace will exhaust the quota before reset (shown in orange)
-- **"On pace to reset with ~15% to spare"** — your usage is sustainable through the reset window
-- **"Usage stable"** — usage is not increasing or is declining
-- **"Collecting pace data..."** — shown after the first sample while waiting for a second sample to compute the projection
-
-The projection requires at least 30 seconds between samples and updates on every refresh cycle.
-
----
-
-## Provider Health Diagnostics
-
-A dedicated diagnostics section in Settings helps troubleshoot connection issues:
-
-- **Status dot** — green (connected), red (failed), orange (path missing), gray (idle/disabled)
-- **Last fetch** — timestamp of the most recent successful fetch
-- **Path status** — whether the configured executable or database path exists on disk
-- **Last error** — the most recent error message (if any)
-- **Test connection** — button to manually trigger a fetch and report success/failure with elapsed time in milliseconds
+| Severity | Threshold | Ring color | Countdown pill color |
+|----------|-----------|------------|---------------------|
+| Unavailable | No data | Gray slash | Gray pill |
+| Healthy | < 70% | Provider gradient | Provider color |
+| Warning | 70–89% | Orange | Orange |
+| Critical | ≥ 90% | Red | Red |
 
 ---
 
@@ -376,27 +324,6 @@ AiStat/
 └── README.md
 ```
 
-### Refresh lifecycle
-
-- The view model starts two async loops on launch
-- **Refresh loop**: fetches all enabled providers on a configurable interval (default 5 minutes) using `withTaskGroup` for parallelism
-- **Clock loop**: updates the `now` property every minute so countdown timers stay accurate without re-fetching
-- **Notification coordinator**: evaluates usage summaries and billing expiries after each refresh, delivering macOS notifications as needed
-- Disabling a provider clears its cached snapshot and marks its state as `.disabled`
-
-### Severity system
-
-Menu bar indicators use four severity levels, derived from usage percentage:
-
-| Severity | Threshold | Ring color | Countdown pill color |
-|----------|-----------|------------|---------------------|
-| Unavailable | No data | Gray slash | Gray pill |
-| Healthy | < 70% | Provider gradient | Provider color |
-| Warning | 70–89% | Orange | Orange |
-| Critical | ≥ 90% | Red | Red |
-
-When a provider fetch fails but cached data exists, the indicator shows a **stale** state with an orange badge and the cached severity level.
-
 ---
 
 ## Testing
@@ -430,9 +357,6 @@ ResetStat reads auth tokens from existing locations (e.g. `~/.codex/auth.json`, 
 
 **Why does OpenCode Go require a cookie?**
 The OpenCode Go CLI token does not expose usage windows. ResetStat scrapes the web dashboard, which requires the `auth` cookie from your browser session. This cookie is stored locally and never transmitted anywhere except opencode.ai.
-
-**Will pace projection work immediately?**
-Pace projection needs two usage samples taken at least 30 seconds apart. After the first refresh, you'll see "Collecting pace data..." — the actual projection appears after the next refresh cycle.
 
 **Can I hide provider names for screenshots?**
 Yes. Enable "Hidden" display mode in Settings to anonymize all provider names to "Provider 1–4" throughout the UI, help text, and error messages.
