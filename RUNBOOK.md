@@ -1,25 +1,25 @@
-# ResetStat Runbook
+# LimitLens Runbook
 
-ResetStat is a native macOS menu bar app built with Swift Package Manager. It targets macOS 13 or newer.
+LimitLens is a native macOS menu bar app built with Swift Package Manager. It targets macOS 13 or newer.
 
 ## Run Locally
 
 From the repo root:
 
 ```sh
-swift run ResetStat
+swift run LimitLens
 ```
 
 This starts the menu bar app directly from SwiftPM. Look for the `S` icon in the macOS menu bar. The app has no Dock icon.
 
 ## Configure Providers
 
-On first launch, ResetStat auto-detects common provider paths and enables only the providers it finds. Open the menu bar popover and click the gear icon in the footer to change settings.
+On first launch, LimitLens auto-detects common provider paths and enables only the providers it finds. Open the menu bar popover and click the gear icon in the footer to change settings.
 
 Settings are saved automatically to:
 
 ```text
-~/Library/Application Support/ResetStat/config.json
+~/Library/Application Support/LimitLens/config.json
 ```
 
 You can:
@@ -60,18 +60,18 @@ Scripts/build-app.sh
 This generates the icon, builds the release binary, and creates:
 
 ```text
-.build/ResetStat.app
+.build/LimitLens.app
 ```
 
 Launch it with:
 
 ```sh
-open .build/ResetStat.app
+open .build/LimitLens.app
 ```
 
 ## OpenCode Go Setup
 
-OpenCode Go usage is scraped from the OpenCode dashboard, because the CLI token does not expose the dashboard usage windows. On first launch, ResetStat shows Settings the first time you open the popover, with an OpenCode Go dashboard form.
+OpenCode Go usage is scraped from the OpenCode dashboard, because the CLI token does not expose the dashboard usage windows. On first launch, LimitLens shows Settings the first time you open the popover, with an OpenCode Go dashboard form.
 
 You will need:
 
@@ -86,4 +86,4 @@ The form writes:
 
 It enables OpenCode Go and refreshes usage after saving.
 
-You can also point ResetStat to a different OpenCode Go config file from the Settings tab. `Scripts/configure-opencode-go.sh` remains available for terminal setup.
+You can also point LimitLens to a different OpenCode Go config file from the Settings tab. `Scripts/configure-opencode-go.sh` remains available for terminal setup.

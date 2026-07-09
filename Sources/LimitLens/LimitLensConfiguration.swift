@@ -1,0 +1,508 @@
+import Foundation
+
+enum MenuBarDisplay: String, Codable, Equatable, CaseIterable {
+    case logos
+    case countdowns
+    case hidden
+}
+
+struct LimitLensConfiguration: Codable, Equatable {
+    var providers: ProviderConfiguration
+    var privacy: PrivacyConfiguration
+    var setup: SetupConfiguration
+    var refresh: RefreshConfiguration
+    var notifications: NotificationConfiguration
+
+    init(
+        providers: ProviderConfiguration,
+        privacy: PrivacyConfiguration,
+        setup: SetupConfiguration = SetupConfiguration(),
+        refresh: RefreshConfiguration = RefreshConfiguration(),
+        notifications: NotificationConfiguration = NotificationConfiguration()
+    ) {
+        self.providers = providers
+        self.privacy = privacy
+        self.setup = setup
+        self.refresh = refresh
+        self.notifications = notifications
+    }
+
+    static let defaults = LimitLensConfiguration(
+        providers: ProviderConfiguration(
+            codex: CodexProviderConfiguration(
+                isEnabled: true,
+                executablePath: "/Applications/Codex.app/Contents/Resources/codex"
+            ),
+            cursor: CursorProviderConfiguration(
+                isEnabled: true,
+                stateDatabasePath: "\(NSHomeDirectory())/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+            ),
+            devin: DevinProviderConfiguration(
+                isEnabled: true,
+                stateDatabasePath: "\(NSHomeDirectory())/Library/Application Support/Devin/User/globalStorage/state.vscdb"
+            ),
+            openCodeGo: OpenCodeGoProviderConfiguration(
+                isEnabled: true,
+                configPath: "\(NSHomeDirectory())/.config/opencode/opencode-quota/opencode-go.json"
+            )
+        ),
+        privacy: PrivacyConfiguration(menuBarDisplay: .logos)
+    )
+
+    enum CodingKeys: String, CodingKey {
+        case providers
+        case privacy
+        case setup
+        case refresh
+        case notifications
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.providers = try container.decode(ProviderConfiguration.self, forKey: .providers)
+        self.privacy = try container.decode(PrivacyConfiguration.self, forKey: .privacy)
+        self.setup = try container.decodeIfPresent(SetupConfiguration.self, forKey: .setup) ?? SetupConfiguration()
+        self.refresh = try container.decodeIfPresent(RefreshConfiguration.self, forKey: .refresh) ?? RefreshConfiguration()
+        self.notifications = try container.decodeIfPresent(NotificationConfiguration.self, forKey: .notifications) ?? NotificationConfiguration()
+    }
+
+    static func detected(
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) -> LimitLensConfiguration {
+        let defaults = LimitLensConfiguration.defaults
+        let codexPath = firstMatchingPath(
+            [
+                defaults.providers.codex.executablePath,
+                "\(NSHomeDirectory())/Applications/Codex.app/Contents/Resources/codex"
+            ],
+            matches: isExecutable
+        ) ?? defaults.providers.codex.executablePath
+        let cursorPath = firstMatchingPath(
+            [
+                defaults.providers.cursor.stateDatabasePath,
+                "\(NSHomeDirectory())/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+            ],
+            matches: fileExists
+        ) ?? defaults.providers.cursor.stateDatabasePath
+        let devinPath = firstMatchingPath(
+            [
+                defaults.providers.devin.stateDatabasePath,
+                "\(NSHomeDirectory())/Library/Application Support/Devin/User/globalStorage/state.vscdb"
+            ],
+            matches: fileExists
+        ) ?? defaults.providers.devin.stateDatabasePath
+        let openCodeGoPath = firstMatchingPath(
+            [
+                defaults.providers.openCodeGo.configPath,
+                "\(NSHomeDirectory())/.config/opencode/opencode-quota/opencode-go.json"
+            ],
+            matches: fileExists
+        ) ?? defaults.providers.openCodeGo.configPath
+
+        return LimitLensConfiguration(
+            providers: ProviderConfiguration(
+                codex: CodexProviderConfiguration(isEnabled: isExecutable(codexPath), executablePath: codexPath),
+                cursor: CursorProviderConfiguration(isEnabled: fileExists(cursorPath), stateDatabasePath: cursorPath),
+                devin: DevinProviderConfiguration(isEnabled: fileExists(devinPath), stateDatabasePath: devinPath),
+                openCodeGo: OpenCodeGoProviderConfiguration(isEnabled: fileExists(openCodeGoPath), configPath: openCodeGoPath)
+            ),
+            privacy: defaults.privacy,
+            setup: SetupConfiguration(showsFirstLaunchSetup: true),
+            refresh: defaults.refresh,
+            notifications: defaults.notifications
+        )
+    }
+
+    private static func firstMatchingPath(_ paths: [String], matches: (String) -> Bool) -> String? {
+        paths.first(where: matches)
+    }
+}
+
+struct SetupConfiguration: Codable, Equatable {
+    var showsFirstLaunchSetup: Bool
+
+    init(showsFirstLaunchSetup: Bool = false) {
+        self.showsFirstLaunchSetup = showsFirstLaunchSetup
+    }
+}
+
+struct RefreshConfiguration: Codable, Equatable {
+    static let validIntervals: [Int] = [60, 180, 300, 900, 1800]
+
+    var intervalSeconds: Int
+    var retryEnabled: Bool
+    var maxRetryAttempts: Int
+
+    init(intervalSeconds: Int = 300, retryEnabled: Bool = true, maxRetryAttempts: Int = 3) {
+        self.intervalSeconds = Self.sanitizedInterval(intervalSeconds)
+        self.retryEnabled = retryEnabled
+        self.maxRetryAttempts = max(maxRetryAttempts, 0)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case intervalSeconds
+        case retryEnabled
+        case maxRetryAttempts
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let interval = try container.decodeIfPresent(Int.self, forKey: .intervalSeconds) ?? 300
+        self.intervalSeconds = Self.sanitizedInterval(interval)
+        self.retryEnabled = try container.decodeIfPresent(Bool.self, forKey: .retryEnabled) ?? true
+        self.maxRetryAttempts = max(try container.decodeIfPresent(Int.self, forKey: .maxRetryAttempts) ?? 3, 0)
+    }
+
+    static func sanitizedInterval(_ seconds: Int) -> Int {
+        guard !validIntervals.isEmpty else { return 300 }
+        if validIntervals.contains(seconds) { return seconds }
+        // Allow custom values in 1–60 minute range, snapped to nearest minute
+        let clamped = max(60, min(3600, seconds))
+        return clamped
+    }
+}
+
+struct NotificationConfiguration: Codable, Equatable {
+    static let defaultCriticalThreshold = 90
+
+    var enabled: Bool
+    var criticalUsage: Bool
+    var billingExpiring: Bool
+    var providerUnavailable: Bool
+    var dailyDigest: Bool
+    var dailyDigestHour: Int
+    var quietHoursStartHour: Int?
+    var quietHoursEndHour: Int?
+    var perProvider: PerProviderNotificationFlags
+    var thresholds: PerProviderThresholds
+
+    init(
+        enabled: Bool = false,
+        criticalUsage: Bool = true,
+        billingExpiring: Bool = true,
+        providerUnavailable: Bool = true,
+        dailyDigest: Bool = false,
+        dailyDigestHour: Int = 9,
+        quietHoursStartHour: Int? = nil,
+        quietHoursEndHour: Int? = nil,
+        perProvider: PerProviderNotificationFlags = PerProviderNotificationFlags(),
+        thresholds: PerProviderThresholds = PerProviderThresholds()
+    ) {
+        self.enabled = enabled
+        self.criticalUsage = criticalUsage
+        self.billingExpiring = billingExpiring
+        self.providerUnavailable = providerUnavailable
+        self.dailyDigest = dailyDigest
+        self.dailyDigestHour = max(0, min(23, dailyDigestHour))
+        self.quietHoursStartHour = quietHoursStartHour
+        self.quietHoursEndHour = quietHoursEndHour
+        self.perProvider = perProvider
+        self.thresholds = thresholds
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case criticalUsage
+        case billingExpiring
+        case providerUnavailable
+        case dailyDigest
+        case dailyDigestHour
+        case quietHoursStartHour
+        case quietHoursEndHour
+        case perProvider
+        case thresholds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        self.criticalUsage = try container.decodeIfPresent(Bool.self, forKey: .criticalUsage) ?? true
+        self.billingExpiring = try container.decodeIfPresent(Bool.self, forKey: .billingExpiring) ?? true
+        self.providerUnavailable = try container.decodeIfPresent(Bool.self, forKey: .providerUnavailable) ?? true
+        self.dailyDigest = try container.decodeIfPresent(Bool.self, forKey: .dailyDigest) ?? false
+        let digestHour = try container.decodeIfPresent(Int.self, forKey: .dailyDigestHour) ?? 9
+        self.dailyDigestHour = max(0, min(23, digestHour))
+        self.quietHoursStartHour = try container.decodeIfPresent(Int.self, forKey: .quietHoursStartHour)
+        self.quietHoursEndHour = try container.decodeIfPresent(Int.self, forKey: .quietHoursEndHour)
+        self.perProvider = try container.decodeIfPresent(PerProviderNotificationFlags.self, forKey: .perProvider) ?? PerProviderNotificationFlags()
+        self.thresholds = try container.decodeIfPresent(PerProviderThresholds.self, forKey: .thresholds) ?? PerProviderThresholds()
+    }
+
+    func criticalThreshold(for tab: ProviderTab) -> Int {
+        let value: Int?
+        switch tab {
+        case .codex: value = thresholds.codex
+        case .cursor: value = thresholds.cursor
+        case .devin: value = thresholds.devin
+        case .openCodeGo: value = thresholds.openCodeGo
+        case .overview, .settings: value = nil
+        }
+        return value ?? Self.defaultCriticalThreshold
+    }
+}
+
+struct PerProviderThresholds: Codable, Equatable {
+    var codex: Int?
+    var cursor: Int?
+    var devin: Int?
+    var openCodeGo: Int?
+
+    init(codex: Int? = nil, cursor: Int? = nil, devin: Int? = nil, openCodeGo: Int? = nil) {
+        self.codex = codex
+        self.cursor = cursor
+        self.devin = devin
+        self.openCodeGo = openCodeGo
+    }
+}
+
+struct PerProviderNotificationFlags: Codable, Equatable {
+    var codex: Bool
+    var cursor: Bool
+    var devin: Bool
+    var openCodeGo: Bool
+
+    init(codex: Bool = true, cursor: Bool = true, devin: Bool = true, openCodeGo: Bool = true) {
+        self.codex = codex
+        self.cursor = cursor
+        self.devin = devin
+        self.openCodeGo = openCodeGo
+    }
+}
+
+struct ProviderConfiguration: Codable, Equatable {
+    var codex: CodexProviderConfiguration
+    var cursor: CursorProviderConfiguration
+    var devin: DevinProviderConfiguration
+    var openCodeGo: OpenCodeGoProviderConfiguration
+}
+
+struct CodexProviderConfiguration: Codable, Equatable {
+    var isEnabled: Bool
+    var executablePath: String
+}
+
+struct CursorProviderConfiguration: Codable, Equatable {
+    var isEnabled: Bool
+    var stateDatabasePath: String
+}
+
+struct DevinProviderConfiguration: Codable, Equatable {
+    var isEnabled: Bool
+    var stateDatabasePath: String
+}
+
+struct OpenCodeGoProviderConfiguration: Codable, Equatable {
+    var isEnabled: Bool
+    var configPath: String
+
+    var validationWarning: String? {
+        OpenCodeGoDashboardConfigFile.validationWarning(at: URL(fileURLWithPath: configPath))
+    }
+}
+
+enum OpenCodeGoDashboardCredentialsError: LocalizedError, Equatable {
+    case missingWorkspaceId
+    case missingAuthCookie
+
+    var errorDescription: String? {
+        switch self {
+        case .missingWorkspaceId:
+            return "Enter an OpenCode workspace ID."
+        case .missingAuthCookie:
+            return "Enter the opencode.ai auth cookie."
+        }
+    }
+}
+
+struct OpenCodeGoDashboardCredentials: Codable, Equatable {
+    var workspaceId: String
+    var authCookie: String
+
+    init(workspaceId: String, authCookie: String) {
+        self.workspaceId = workspaceId
+        self.authCookie = authCookie
+    }
+
+    init(workspaceInput: String, authCookieInput: String) throws {
+        let workspaceId = Self.normalizedWorkspaceId(from: workspaceInput)
+        let authCookie = Self.normalizedAuthCookie(from: authCookieInput)
+
+        guard !workspaceId.isEmpty else {
+            throw OpenCodeGoDashboardCredentialsError.missingWorkspaceId
+        }
+        guard !authCookie.isEmpty else {
+            throw OpenCodeGoDashboardCredentialsError.missingAuthCookie
+        }
+
+        self.workspaceId = workspaceId
+        self.authCookie = authCookie
+    }
+
+    static func normalizedWorkspaceId(from input: String) -> String {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let withoutFragment = trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? trimmed
+        let withoutQuery = withoutFragment.split(separator: "?", maxSplits: 1).first.map(String.init) ?? withoutFragment
+        let pathLike = withoutQuery.replacingOccurrences(of: "://", with: "/")
+        let parts = pathLike
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+
+        if let workspaceIndex = parts.lastIndex(of: "workspace"),
+           parts.indices.contains(workspaceIndex + 1) {
+            return percentDecoded(parts[workspaceIndex + 1])
+        }
+
+        if parts.last == "go", parts.count >= 2 {
+            return percentDecoded(parts[parts.count - 2])
+        }
+
+        if withoutQuery.contains("://") || parts.contains(where: { $0.localizedCaseInsensitiveContains("opencode.ai") }) {
+            return ""
+        }
+
+        return percentDecoded(withoutQuery.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+    }
+
+    static func normalizedAuthCookie(from input: String) -> String {
+        let raw = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed: String
+        if raw.range(of: "Cookie:", options: [.caseInsensitive, .anchored]) != nil {
+            trimmed = String(raw.dropFirst("Cookie:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            trimmed = raw
+        }
+        guard !trimmed.isEmpty else { return "" }
+
+        for pair in trimmed.split(separator: ";") {
+            let pieces = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            guard pieces.count == 2,
+                  pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == "auth" else {
+                continue
+            }
+            return pieces[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return trimmed
+    }
+
+    private static func percentDecoded(_ value: String) -> String {
+        (value.removingPercentEncoding ?? value)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func dashboardURL(workspaceId: String) -> URL {
+        let normalized = normalizedWorkspaceId(from: workspaceId)
+        guard !normalized.isEmpty else {
+            return URL(string: "https://opencode.ai")!
+        }
+        let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? normalized
+        return URL(string: "https://opencode.ai/workspace/\(encoded)/go")!
+    }
+}
+
+enum OpenCodeGoDashboardConfigFile {
+    private struct Payload: Codable {
+        let workspaceId: String?
+        let authCookie: String?
+    }
+
+    static func load(from url: URL) throws -> OpenCodeGoDashboardCredentials {
+        let data = try Data(contentsOf: url)
+        let payload = try JSONDecoder().decode(Payload.self, from: data)
+        return try OpenCodeGoDashboardCredentials(
+            workspaceInput: payload.workspaceId ?? "",
+            authCookieInput: payload.authCookie ?? ""
+        )
+    }
+
+    static func loadIfPresent(from url: URL) -> OpenCodeGoDashboardCredentials? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try? load(from: url)
+    }
+
+    static func save(_ credentials: OpenCodeGoDashboardCredentials, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(credentials)
+        try data.write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    static func validationWarning(at url: URL) -> String? {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return "Path does not exist."
+        }
+
+        do {
+            _ = try load(from: url)
+            return nil
+        } catch OpenCodeGoDashboardCredentialsError.missingWorkspaceId,
+                OpenCodeGoDashboardCredentialsError.missingAuthCookie {
+            return "Config must include workspaceId and authCookie."
+        } catch {
+            return "Config JSON is invalid."
+        }
+    }
+}
+
+struct PrivacyConfiguration: Codable, Equatable {
+    var menuBarDisplay: MenuBarDisplay
+
+    var hidesProviderNames: Bool {
+        menuBarDisplay == .hidden
+    }
+
+    init(menuBarDisplay: MenuBarDisplay = .logos) {
+        self.menuBarDisplay = menuBarDisplay
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case menuBarDisplay
+        case hidesProviderNames
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let display = try container.decodeIfPresent(MenuBarDisplay.self, forKey: .menuBarDisplay) {
+            self.menuBarDisplay = display
+        } else if try container.decodeIfPresent(Bool.self, forKey: .hidesProviderNames) == true {
+            self.menuBarDisplay = .hidden
+        } else {
+            self.menuBarDisplay = .logos
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(menuBarDisplay, forKey: .menuBarDisplay)
+    }
+}
+
+extension URL {
+    static var defaultLimitLensConfigurationURL: URL {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Application Support")
+        let newDir = directory.appendingPathComponent("LimitLens", isDirectory: true)
+        let newURL = newDir.appendingPathComponent("config.json")
+
+        // Migrate from old "ResetStat" directory if the new one doesn't exist yet
+        let oldDir = directory.appendingPathComponent("ResetStat", isDirectory: true)
+        let oldURL = oldDir.appendingPathComponent("config.json")
+        if !FileManager.default.fileExists(atPath: newURL.path),
+           FileManager.default.fileExists(atPath: oldURL.path) {
+            try? FileManager.default.createDirectory(at: newDir, withIntermediateDirectories: true)
+            try? FileManager.default.copyItem(at: oldURL, to: newURL)
+        }
+
+        return newURL
+    }
+}

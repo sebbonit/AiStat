@@ -4,8 +4,8 @@ import AppKit
 import Foundation
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let iconsetURL = root.appendingPathComponent(".build/ResetStat.iconset", isDirectory: true)
-let outputURL = root.appendingPathComponent("Resources/ResetStat.icns")
+let iconsetURL = root.appendingPathComponent(".build/LimitLens.iconset", isDirectory: true)
+let outputURL = root.appendingPathComponent("Resources/LimitLens.icns")
 
 try? FileManager.default.removeItem(at: iconsetURL)
 try FileManager.default.createDirectory(at: iconsetURL, withIntermediateDirectories: true)
@@ -120,7 +120,7 @@ for variant in variants {
     guard let tiff = image.tiffRepresentation,
           let bitmap = NSBitmapImageRep(data: tiff),
           let png = bitmap.representation(using: .png, properties: [:]) else {
-        throw NSError(domain: "ResetStatIcon", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to render \(variant.filename)"])
+        throw NSError(domain: "LimitLensIcon", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to render \(variant.filename)"])
     }
     try png.write(to: iconsetURL.appendingPathComponent(variant.filename))
 }
@@ -132,7 +132,7 @@ try process.run()
 process.waitUntilExit()
 
 guard process.terminationStatus == 0 else {
-    throw NSError(domain: "ResetStatIcon", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "iconutil failed"])
+    throw NSError(domain: "LimitLensIcon", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "iconutil failed"])
 }
 
 print("Generated \(outputURL.path)")

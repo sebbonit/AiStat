@@ -1,13 +1,13 @@
-# ResetStat — AI Coding Usage Tracker for macOS
+# LimitLens — AI Coding Usage Tracker for macOS
 
-> **Track your AI coding assistant usage and quotas in the macOS menu bar.** ResetStat is a native, lightweight macOS menu bar app that monitors usage limits, reset windows, billing cycles, and renewal dates for Codex, Cursor, Devin, and OpenCode Go — all in one glance.
+> **Track your AI coding assistant usage and quotas in the macOS menu bar.** LimitLens is a native, lightweight macOS menu bar app that monitors usage limits, reset windows, billing cycles, and renewal dates for Codex, Cursor, Devin, and OpenCode Go — all in one glance.
 
 [![Swift 6.0](https://img.shields.io/badge/swift-6.0-orange.svg)](https://swift.org)
 [![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue.svg)](https://apple.com/macos)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests: 104](https://img.shields.io/badge/tests-104-brightgreen.svg)](#testing)
 
-![ResetStat popover overview showing AI coding usage for Codex, Cursor, Devin, and OpenCode Go with progress bars, billing info, and pace projections](docs/screenshots/popover-overview.png)
+![LimitLens popover overview showing AI coding usage for Codex, Cursor, Devin, and OpenCode Go with progress bars, billing info, and pace projections](docs/screenshots/popover-overview.png)
 
 ---
 
@@ -29,9 +29,9 @@
 
 ## Overview
 
-ResetStat is a **native macOS menu bar app** (no Dock icon) that aggregates usage data from multiple AI coding assistants into a single, color-coded popover. It runs quietly in the background, fetching usage data on a configurable interval and rendering live progress rings, countdown timers, and detailed metrics directly in your menu bar.
+LimitLens is a **native macOS menu bar app** (no Dock icon) that aggregates usage data from multiple AI coding assistants into a single, color-coded popover. It runs quietly in the background, fetching usage data on a configurable interval and rendering live progress rings, countdown timers, and detailed metrics directly in your menu bar.
 
-**Who is it for?** Developers who use multiple AI coding tools and want to avoid hitting rate limits or billing surprises. ResetStat gives you a single dashboard to monitor all of them at once.
+**Who is it for?** Developers who use multiple AI coding tools and want to avoid hitting rate limits or billing surprises. LimitLens gives you a single dashboard to monitor all of them at once.
 
 **Key design principles:**
 - **No accounts, no cloud, no telemetry** — everything runs locally on your Mac
@@ -74,7 +74,7 @@ Three display modes, configurable from Settings:
 When a provider fetch fails but cached data exists, the indicator shows a **stale** state with an orange badge and the cached severity level.
 
 ### Notifications (macOS native)
-ResetStat uses native macOS notifications (UserNotifications framework) to alert you about important usage events. No push servers, no cloud — all notifications are scheduled locally.
+LimitLens uses native macOS notifications (UserNotifications framework) to alert you about important usage events. No push servers, no cloud — all notifications are scheduled locally.
 
 | Notification | Trigger | Configurable |
 |-------------|---------|-------------|
@@ -90,7 +90,7 @@ Additional notification options:
 - **Test notification button** — verify macOS notification permissions are granted
 
 ### Usage Pace Projection
-ResetStat computes a **linear projection** of your usage pace by comparing two consecutive usage snapshots. This tells you whether you're on track to exhaust your quota before the reset window, or if you'll reset with usage to spare.
+LimitLens computes a **linear projection** of your usage pace by comparing two consecutive usage snapshots. This tells you whether you're on track to exhaust your quota before the reset window, or if you'll reset with usage to spare.
 
 - **"On track to exhaust in ~3h"** — your current pace will exhaust the quota before reset (shown in orange)
 - **"On pace to reset with ~15% to spare"** — your usage is sustainable through the reset window
@@ -149,14 +149,14 @@ git clone https://github.com/sebbonit/AiStat.git
 cd AiStat
 
 # Run directly from SwiftPM
-swift run ResetStat
+swift run LimitLens
 ```
 
 ### Build the app bundle
 
 ```sh
 Scripts/build-app.sh
-open .build/ResetStat.app
+open .build/LimitLens.app
 ```
 
 This generates the icon, builds the release binary, and creates a standalone `.app` bundle you can drag to your Applications folder.
@@ -165,21 +165,21 @@ This generates the icon, builds the release binary, and creates a standalone `.a
 
 ## Configuration
 
-On first launch, ResetStat auto-detects which providers have valid paths and enables only those. You can adjust everything from the Settings tab.
+On first launch, LimitLens auto-detects which providers have valid paths and enables only those. You can adjust everything from the Settings tab.
 
 ### Configuration file
 
 Settings are persisted to:
 
 ```
-~/Library/Application Support/ResetStat/config.json
+~/Library/Application Support/LimitLens/config.json
 ```
 
 If the file becomes corrupted, it is renamed to `config.invalid.json` and defaults are loaded.
 
 ### OpenCode Go setup
 
-OpenCode Go usage is scraped from the web dashboard because the CLI token does not expose usage windows. On first launch, ResetStat shows Settings the first time you open the popover, with an OpenCode Go dashboard form.
+OpenCode Go usage is scraped from the web dashboard because the CLI token does not expose usage windows. On first launch, LimitLens shows Settings the first time you open the popover, with an OpenCode Go dashboard form.
 
 You will need:
 - Your workspace ID from a URL like `https://opencode.ai/workspace/<workspace-id>/go`
@@ -195,13 +195,13 @@ The form writes `~/.config/opencode/opencode-quota/opencode-go.json`, enables Op
 
 | Module | Type | Purpose |
 |--------|------|---------|
-| `ResetStat` | Executable | SwiftUI app, menu bar rendering, configuration UI, notifications |
-| `ResetStatCore` | Library | Provider clients, API models, usage formatting, pace projection |
+| `LimitLens` | Executable | SwiftUI app, menu bar rendering, configuration UI, notifications |
+| `LimitLensCore` | Library | Provider clients, API models, usage formatting, pace projection |
 
 ### Data flow
 
 ```
-User launches ResetStat
+User launches LimitLens
         │
         ▼
 UsageViewModel.start()
@@ -270,14 +270,14 @@ swift test
 AiStat/
 ├── Package.swift
 ├── Sources/
-│   ├── ResetStat/               # App target
-│   │   ├── ResetStatApp.swift          # @main, MenuBarExtra entry point
-│   │   ├── ResetStatPopover.swift      # Popover with tab bar and content switching
+│   ├── LimitLens/               # App target
+│   │   ├── LimitLensApp.swift          # @main, MenuBarExtra entry point
+│   │   ├── LimitLensPopover.swift      # Popover with tab bar and content switching
 │   │   ├── UsageViewModel.swift        # State management, refresh loops, diagnostics
 │   │   ├── UsageViewModel+MenuBar.swift # Menu bar status derivation
 │   │   ├── UsageViewModel+Summary.swift # Provider summary aggregation
-│   │   ├── ResetStatConfiguration.swift       # Config models, auto-detect, migration
-│   │   ├── ResetStatConfigurationStore.swift  # JSON persistence
+│   │   ├── LimitLensConfiguration.swift       # Config models, auto-detect, migration
+│   │   ├── LimitLensConfigurationStore.swift  # JSON persistence
 │   │   ├── SettingsSection.swift       # Settings tab UI (providers, refresh, notifications, diagnostics)
 │   │   ├── OverviewSection.swift       # Overview tab with all-provider summary
 │   │   ├── CodexSection.swift          # Codex provider tab
@@ -289,7 +289,7 @@ AiStat/
 │   │   ├── MenuBarStatusModels.swift   # Menu bar status types and diagnostic models
 │   │   ├── MenuBarStatusLabel.swift    # Menu bar label view
 │   │   └── MenuBarStatusImageRenderer.swift # NSImage rendering for menu bar
-│   └── ResetStatCore/           # Library target
+│   └── LimitLensCore/           # Library target
 │       ├── CodexAppServerClient.swift        # Codex JSON-RPC over stdio
 │       ├── BackendCodexAccountClient.swift    # Codex account/renewal API
 │       ├── BackendResetCreditClient.swift     # Codex reset credits API
@@ -301,21 +301,21 @@ AiStat/
 │       ├── UsageFormatting.swift              # Time, money, number formatting
 │       └── UsagePaceProjection.swift          # Linear pace projection logic
 ├── Tests/
-│   ├── ResetStatTests/
+│   ├── LimitLensTests/
 │   │   ├── MenuBarStatusTests.swift           # Menu bar display mode tests
 │   │   ├── UsageNotificationTests.swift       # Notification coordinator tests
-│   │   ├── ResetStatConfigurationTests.swift  # Config persistence + migration tests
+│   │   ├── LimitLensConfigurationTests.swift  # Config persistence + migration tests
 │   │   ├── ProviderDiagnosticsTests.swift     # Provider diagnostics tests
 │   │   └── UsageViewModelTests.swift          # View model + pace projection tests
-│   └── ResetStatCoreTests/
-│       ├── ResetStatCoreTests.swift           # Parsing + formatting tests
+│   └── LimitLensCoreTests/
+│       ├── LimitLensCoreTests.swift           # Parsing + formatting tests
 │       ├── UsagePaceProjectionTests.swift     # Pace projection unit tests
 │       └── Fixtures/                          # JSON/HTML test fixtures
 ├── docs/
 │   └── screenshots/                           # Screenshots for README
 ├── Resources/
 │   ├── Info.plist
-│   └── ResetStat.icns
+│   └── LimitLens.icns
 ├── Scripts/
 │   ├── build-app.sh                # Build .app bundle
 │   ├── configure-opencode-go.sh    # Terminal fallback for OpenCode Go config
@@ -328,7 +328,7 @@ AiStat/
 
 ## Testing
 
-ResetStat includes 104 tests across 8 test suites:
+LimitLens includes 104 tests across 8 test suites:
 
 | Suite | Tests | Covers |
 |-------|-------|--------|
@@ -336,7 +336,7 @@ ResetStat includes 104 tests across 8 test suites:
 | Usage pace projection | 8 | Exhaustion projection, stable usage, spare calculation, short elapsed |
 | Menu bar status indicators | 12 | Loading/warning/critical/stale/unavailable states, privacy mode, countdown mode |
 | Notification coordinator | 20+ | Critical usage, billing, unavailable, per-provider thresholds, daily digest, quiet hours |
-| ResetStat configuration | 15+ | Save/reload, auto-detection, legacy migration, bad JSON, daily digest clamping |
+| LimitLens configuration | 15+ | Save/reload, auto-detection, legacy migration, bad JSON, daily digest clamping |
 | Refresh configurability | 5+ | Interval changes, retry, per-provider refresh gating, overlap prevention |
 | Provider diagnostics | 2 | Connection test success/failure results |
 | Dashboard deep links | 3 | Tab navigation from overview |
@@ -349,14 +349,14 @@ swift test
 
 ## FAQ
 
-**Does ResetStat send any data to a server?**
-No. ResetStat runs entirely locally. It fetches usage data directly from provider APIs and dashboards using credentials already on your machine. No telemetry, no analytics, no phone-home.
+**Does LimitLens send any data to a server?**
+No. LimitLens runs entirely locally. It fetches usage data directly from provider APIs and dashboards using credentials already on your machine. No telemetry, no analytics, no phone-home.
 
-**Does ResetStat store my passwords or tokens?**
-ResetStat reads auth tokens from existing locations (e.g. `~/.codex/auth.json`, Cursor's SQLite database) but does not store or transmit them. The only thing saved to disk is your configuration file at `~/Library/Application Support/ResetStat/config.json`.
+**Does LimitLens store my passwords or tokens?**
+LimitLens reads auth tokens from existing locations (e.g. `~/.codex/auth.json`, Cursor's SQLite database) but does not store or transmit them. The only thing saved to disk is your configuration file at `~/Library/Application Support/LimitLens/config.json`.
 
 **Why does OpenCode Go require a cookie?**
-The OpenCode Go CLI token does not expose usage windows. ResetStat scrapes the web dashboard, which requires the `auth` cookie from your browser session. This cookie is stored locally and never transmitted anywhere except opencode.ai.
+The OpenCode Go CLI token does not expose usage windows. LimitLens scrapes the web dashboard, which requires the `auth` cookie from your browser session. This cookie is stored locally and never transmitted anywhere except opencode.ai.
 
 **Can I hide provider names for screenshots?**
 Yes. Enable "Hidden" display mode in Settings to anonymize all provider names to "Provider 1–4" throughout the UI, help text, and error messages.
@@ -372,11 +372,11 @@ Pull requests are welcome. Please keep commits focused, add tests for new behavi
 
 ### Adding a new provider
 
-1. Create a client conforming to an async fetch protocol in `Sources/ResetStatCore/`
-2. Add models and parsing logic with JSON/HTML fixtures in `Tests/ResetStatCoreTests/Fixtures/`
-3. Add a `ProviderTab` case and a section view in `Sources/ResetStat/`
+1. Create a client conforming to an async fetch protocol in `Sources/LimitLensCore/`
+2. Add models and parsing logic with JSON/HTML fixtures in `Tests/LimitLensCoreTests/Fixtures/`
+3. Add a `ProviderTab` case and a section view in `Sources/LimitLens/`
 4. Wire up the view model refresh path and notification coordinator
-5. Add tests in both `ResetStatTests` and `ResetStatCoreTests`
+5. Add tests in both `LimitLensTests` and `LimitLensCoreTests`
 
 ---
 

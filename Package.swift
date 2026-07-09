@@ -3,28 +3,28 @@
 import PackageDescription
 
 let package = Package(
-    name: "ResetStat",
+    name: "LimitLens",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "ResetStat", targets: ["ResetStat"]),
-        .library(name: "ResetStatCore", targets: ["ResetStatCore"])
+        .executable(name: "LimitLens", targets: ["LimitLens"]),
+        .library(name: "LimitLensCore", targets: ["LimitLensCore"])
     ],
     targets: [
-        .target(name: "ResetStatCore"),
+        .target(name: "LimitLensCore"),
         .executableTarget(
-            name: "ResetStat",
-            dependencies: ["ResetStatCore"]
+            name: "LimitLens",
+            dependencies: ["LimitLensCore"]
         ),
         .testTarget(
-            name: "ResetStatCoreTests",
-            dependencies: ["ResetStatCore"],
+            name: "LimitLensCoreTests",
+            dependencies: ["LimitLensCore"],
             resources: [.copy("Fixtures")]
         ),
         .testTarget(
-            name: "ResetStatTests",
-            dependencies: ["ResetStat"]
+            name: "LimitLensTests",
+            dependencies: ["LimitLens"]
         )
     ]
 )

@@ -4,7 +4,7 @@ set -euo pipefail
 CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}/opencode-quota"
 CONFIG_FILE="$CONFIG_DIR/opencode-go.json"
 
-printf "OpenCode Go dashboard config for ResetStat\n\n"
+printf "OpenCode Go dashboard config for LimitLens\n\n"
 printf "1. Open https://opencode.ai in your browser.\n"
 printf "2. Go to the Go usage dashboard.\n"
 printf "3. Copy the workspace id from a URL like:\n"
@@ -40,4 +40,4 @@ path.chmod(0o600)
 PY
 
 printf "Wrote %s\n" "$CONFIG_FILE"
-printf "Restart ResetStat or click refresh in the menu bar popover.\n"
+printf "Restart LimitLens or click refresh in the menu bar popover.\n"
