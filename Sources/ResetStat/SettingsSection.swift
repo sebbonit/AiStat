@@ -30,7 +30,7 @@ struct SettingsSectionView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.visible)
-        .frame(maxHeight: 600)
+        .frame(maxHeight: 750)
         .onAppear {
             if !didLoadConfig {
                 didLoadConfig = true
