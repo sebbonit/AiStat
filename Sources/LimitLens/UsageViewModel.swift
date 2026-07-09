@@ -388,7 +388,7 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
-    private func withRetry<T>(_ operation: () async throws -> T) async throws -> T {
+    private func withRetry<T: Sendable>(_ operation: () async throws -> T) async throws -> T {
         guard configuration.refresh.retryEnabled else { return try await operation() }
         let maxAttempts = configuration.refresh.maxRetryAttempts
         var attempt = 0
