@@ -32,48 +32,88 @@ let variants = [
     IconVariant(points: 512, scale: 2, filename: "icon_512x512@2x.png")
 ]
 
+// MARK: - Colors
+
+func ringColor(index: Int) -> NSColor {
+    switch index {
+    case 0: return NSColor(calibratedRed: 0.24, green: 0.51, blue: 0.96, alpha: 1)  // blue (Codex)
+    case 1: return NSColor(calibratedRed: 0.30, green: 0.85, blue: 0.60, alpha: 1)  // green (Cursor)
+    case 2: return NSColor(calibratedRed: 0.96, green: 0.56, blue: 0.20, alpha: 1)  // orange (Devin)
+    case 3: return NSColor(calibratedRed: 0.69, green: 0.32, blue: 0.96, alpha: 1)  // purple (OpenCode Go)
+    default: return NSColor.white
+    }
+}
+
+let backgroundColor = NSColor(calibratedRed: 0.06, green: 0.10, blue: 0.16, alpha: 1)
+let backgroundGradientTop = NSColor(calibratedRed: 0.08, green: 0.14, blue: 0.22, alpha: 1)
+let backgroundGradientBottom = NSColor(calibratedRed: 0.04, green: 0.07, blue: 0.12, alpha: 1)
+
+// Progress values for each ring (0.0 to 1.0) — represents typical usage
+let ringProgress: [CGFloat] = [0.72, 0.45, 0.85, 0.30]
+
+// MARK: - Drawing
+
 func drawIcon(size: Int) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size))
     image.lockFocus()
     defer { image.unlockFocus() }
 
-    let rect = NSRect(x: 0, y: 0, width: size, height: size)
+    let s = CGFloat(size)
+    let rect = NSRect(x: 0, y: 0, width: s, height: s)
+
+    // Clear
     NSColor.clear.setFill()
     rect.fill()
 
-    let radius = CGFloat(size) * 0.22
-    let background = NSBezierPath(roundedRect: rect.insetBy(dx: CGFloat(size) * 0.06, dy: CGFloat(size) * 0.06), xRadius: radius, yRadius: radius)
-    NSColor(calibratedRed: 0.06, green: 0.11, blue: 0.18, alpha: 1).setFill()
-    background.fill()
+    // Background with subtle gradient
+    let bgRect = rect.insetBy(dx: s * 0.04, dy: s * 0.04)
+    let radius = s * 0.22
+    let bgPath = NSBezierPath(roundedRect: bgRect, xRadius: radius, yRadius: radius)
 
-    let gloss = NSBezierPath(roundedRect: rect.insetBy(dx: CGFloat(size) * 0.08, dy: CGFloat(size) * 0.08), xRadius: radius * 0.88, yRadius: radius * 0.88)
-    NSColor(calibratedRed: 0.10, green: 0.19, blue: 0.31, alpha: 1).setStroke()
-    gloss.lineWidth = max(1, CGFloat(size) * 0.012)
-    gloss.stroke()
+    let gradient = NSGradient(starting: backgroundGradientTop, ending: backgroundGradientBottom)
+    gradient?.draw(in: bgPath, angle: -90)
 
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.alignment = .center
-    let fontSize = CGFloat(size) * 0.66
-    let font = NSFont.systemFont(ofSize: fontSize, weight: .black)
-    let attributes: [NSAttributedString.Key: Any] = [
-        .font: font,
-        .foregroundColor: NSColor.white,
-        .paragraphStyle: paragraph,
-        .kern: -CGFloat(size) * 0.018
-    ]
+    // Subtle inner border for depth
+    let borderRect = bgRect.insetBy(dx: s * 0.01, dy: s * 0.01)
+    let borderPath = NSBezierPath(roundedRect: borderRect, xRadius: radius * 0.95, yRadius: radius * 0.95)
+    NSColor(calibratedRed: 1, green: 1, blue: 1, alpha: 0.06).setStroke()
+    borderPath.lineWidth = max(1, s * 0.008)
+    borderPath.stroke()
 
-    let string = "S" as NSString
-    let textSize = string.size(withAttributes: attributes)
-    let textRect = NSRect(
-        x: 0,
-        y: (CGFloat(size) - textSize.height) / 2 + CGFloat(size) * 0.01,
-        width: CGFloat(size),
-        height: textSize.height
-    )
-    string.draw(in: textRect, withAttributes: attributes)
+    // Draw 4 concentric activity rings
+    let center = NSPoint(x: s / 2, y: s / 2)
+    let maxOuterRadius = s * 0.34
+    let ringSpacing = s * 0.055
+    let ringWidth = s * 0.038
+
+    for i in 0..<4 {
+        let ringRadius = maxOuterRadius - CGFloat(i) * ringSpacing
+        let progress = ringProgress[i]
+        let color = ringColor(index: i)
+
+        // Background track (full circle, dimmed)
+        let trackPath = NSBezierPath()
+        trackPath.appendArc(withCenter: center, radius: ringRadius, startAngle: 0, endAngle: 360, clockwise: false)
+        color.withAlphaComponent(0.15).setStroke()
+        trackPath.lineWidth = ringWidth
+        trackPath.lineCapStyle = .round
+        trackPath.stroke()
+
+        // Progress arc (starts at 12 o'clock, goes clockwise)
+        let progressPath = NSBezierPath()
+        let startAngle: CGFloat = 90
+        let endAngle = startAngle - (360 * progress)
+        progressPath.appendArc(withCenter: center, radius: ringRadius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
+        color.setStroke()
+        progressPath.lineWidth = ringWidth
+        progressPath.lineCapStyle = .round
+        progressPath.stroke()
+    }
 
     return image
 }
+
+// MARK: - Generate
 
 for variant in variants {
     let image = drawIcon(size: variant.pixels)
