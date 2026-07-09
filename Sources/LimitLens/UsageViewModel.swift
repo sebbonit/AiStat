@@ -31,11 +31,7 @@ final class UsageViewModel: ObservableObject {
     @Published private(set) var lastErrors: [ProviderTab: String] = [:]
     @Published private(set) var diagnosticTestResults: [ProviderTab: DiagnosticTestResult] = [:]
 
-    private struct PaceSample {
-        let percentUsed: Double
-        let timestamp: Date
-    }
-    private var previousPaceSamples: [ProviderTab: PaceSample] = [:]
+    private var paceSampleHistory: [ProviderTab: [PaceSample]] = [:]
 
     var isProviderRefreshing: (ProviderTab) -> Bool {
         { self.refreshingProviders.contains($0) }
@@ -462,7 +458,7 @@ final class UsageViewModel: ObservableObject {
             state = .disabled
             snapshot = nil
             paceProjections[.codex] = nil
-            previousPaceSamples[.codex] = nil
+            paceSampleHistory[.codex] = nil
             collectingPaceData.remove(.codex)
             lastErrors[.codex] = nil
         }
@@ -470,7 +466,7 @@ final class UsageViewModel: ObservableObject {
             cursorState = .disabled
             cursorSnapshot = nil
             paceProjections[.cursor] = nil
-            previousPaceSamples[.cursor] = nil
+            paceSampleHistory[.cursor] = nil
             collectingPaceData.remove(.cursor)
             lastErrors[.cursor] = nil
         }
@@ -478,7 +474,7 @@ final class UsageViewModel: ObservableObject {
             desktopQuotaState = .disabled
             desktopQuotaSnapshots = []
             paceProjections[.devin] = nil
-            previousPaceSamples[.devin] = nil
+            paceSampleHistory[.devin] = nil
             collectingPaceData.remove(.devin)
             lastErrors[.devin] = nil
         }
@@ -486,7 +482,7 @@ final class UsageViewModel: ObservableObject {
             openCodeGoState = .disabled
             openCodeGoSnapshot = nil
             paceProjections[.openCodeGo] = nil
-            previousPaceSamples[.openCodeGo] = nil
+            paceSampleHistory[.openCodeGo] = nil
             collectingPaceData.remove(.openCodeGo)
             lastErrors[.openCodeGo] = nil
         }
@@ -495,32 +491,32 @@ final class UsageViewModel: ObservableObject {
     private func updatePaceProjection(for tab: ProviderTab) {
         guard let summary = providerSummaries.first(where: { $0.tab == tab }),
               let percent = summary.percentUsed else {
-            previousPaceSamples[tab] = nil
+            paceSampleHistory[tab] = nil
             paceProjections[tab] = nil
             collectingPaceData.remove(tab)
             return
         }
 
         let now = Date()
-        if let previous = previousPaceSamples[tab] {
-            let projection = UsagePaceProjection.project(
-                currentPercent: percent,
-                previousPercent: previous.percentUsed,
-                previousTimestamp: previous.timestamp,
-                now: now,
-                resetAt: summary.resetAt
-            )
-            if let projection {
-                paceProjections[tab] = projection
-                collectingPaceData.remove(tab)
-            } else {
-                // Elapsed too short — keep collecting
-                collectingPaceData.insert(tab)
-            }
+        var history = paceSampleHistory[tab] ?? []
+        history.append(PaceSample(percentUsed: percent, timestamp: now))
+        if history.count > UsagePaceProjection.maxSampleHistory {
+            history.removeFirst(history.count - UsagePaceProjection.maxSampleHistory)
+        }
+        paceSampleHistory[tab] = history
+
+        let projection = UsagePaceProjection.project(
+            samples: history,
+            now: now,
+            resetAt: summary.resetAt
+        )
+        if let projection {
+            paceProjections[tab] = projection
+            collectingPaceData.remove(tab)
         } else {
+            // Not enough elapsed time or samples yet — keep collecting
             collectingPaceData.insert(tab)
         }
-        previousPaceSamples[tab] = PaceSample(percentUsed: percent, timestamp: now)
     }
 
     func testProviderConnection(_ tab: ProviderTab) {
