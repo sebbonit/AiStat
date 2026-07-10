@@ -11,7 +11,7 @@ struct SettingsSectionView: View {
     @State private var openCodeGoSetupMessageIsError = false
     @State private var didLoadConfig = false
     @State private var expandedProvider: ProviderTab?
-    @State private var collapsedSections: Set<String> = []
+    @State private var collapsedSections: Set<String> = ["diagnostics"]
 
     var body: some View {
         ScrollView {
@@ -20,34 +20,25 @@ struct SettingsSectionView: View {
                     firstLaunchSetupView
                 }
 
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        collapsibleSection("providers", title: "Providers", systemImage: "checkmark.circle", detail: "\(enabledProviderCount) of \(ProviderTab.providerCases.count) enabled") {
-                            providersContent
-                        }
-                        collapsibleSection("opencodego", title: openCodeGoDisplayName, systemImage: providerIcon("key", hidesProviderNames: viewModel.hidesProviderNames)) {
-                            openCodeGoAuthContent
-                        }
-                        collapsibleSection("diagnostics", title: "Diagnostics", systemImage: "stethoscope") {
-                            diagnosticsContent
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        collapsibleSection("menubar", title: "Menu bar", systemImage: "menubar.rectangle") {
-                            menuBarContent
-                        }
-                        collapsibleSection("refresh", title: "Refresh", systemImage: "arrow.clockwise") {
-                            refreshContent
-                        }
-                        collapsibleSection("notifications", title: "Notifications", systemImage: "bell") {
-                            notificationsContent
-                        }
-                        resetSection
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                collapsibleSection("providers", title: "Providers", systemImage: "checkmark.circle", detail: "\(enabledProviderCount) of \(ProviderTab.providerCases.count) enabled") {
+                    providersContent
                 }
+                collapsibleSection("opencodego", title: openCodeGoDisplayName, systemImage: providerIcon("key", hidesProviderNames: viewModel.hidesProviderNames)) {
+                    openCodeGoAuthContent
+                }
+                collapsibleSection("menubar", title: "Menu bar", systemImage: "menubar.rectangle") {
+                    menuBarContent
+                }
+                collapsibleSection("refresh", title: "Refresh", systemImage: "arrow.clockwise") {
+                    refreshContent
+                }
+                collapsibleSection("notifications", title: "Notifications", systemImage: "bell") {
+                    notificationsContent
+                }
+                collapsibleSection("diagnostics", title: "Diagnostics", systemImage: "stethoscope") {
+                    diagnosticsContent
+                }
+                resetSection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
