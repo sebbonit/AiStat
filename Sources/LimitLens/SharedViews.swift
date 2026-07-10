@@ -124,8 +124,11 @@ struct UsageCard: View {
                 .lineLimit(1)
             }
         }
-        .padding(9)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+        .padding(.horizontal, 9)
+        .padding(.top, 9)
+        .padding(.bottom, 12)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(0.035))
@@ -423,4 +426,3 @@ struct SectionHeader: View {
         }
     }
 }
-

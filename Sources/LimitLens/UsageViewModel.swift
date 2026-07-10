@@ -53,12 +53,14 @@ final class UsageViewModel: ObservableObject {
     private var didStartLoops = false
     private var refreshingProviders: [ProviderTab: UUID] = [:]
     private let notificationCoordinator: NotificationCoordinator
-    private var refreshTask: Task<Void, Never>?
+    private var scheduledRefreshTask: Task<Void, Never>?
     private var refreshLoopTask: Task<Void, Never>?
+    private var refreshLoopGeneration: UUID?
     private var clockLoopTask: Task<Void, Never>?
     private var autoSwitchLoopTask: Task<Void, Never>?
     private var sleepObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
+    private var applicationActiveObserver: NSObjectProtocol?
 
     convenience init(configurationStore: LimitLensConfigurationStore = LimitLensConfigurationStore()) {
         self.init(
@@ -108,13 +110,21 @@ final class UsageViewModel: ObservableObject {
     }
 
     func start() {
-        guard !didStartLoops else { return }
-        didStartLoops = true
+        if !didStartLoops {
+            didStartLoops = true
+            clockLoopTask = Task { await clockLoop() }
+            autoSwitchLoopTask = Task { await autoSwitchLoop() }
+            observeWorkspacePowerState()
+        }
 
-        refreshLoopTask = Task { await refreshLoop() }
-        clockLoopTask = Task { await clockLoop() }
-        autoSwitchLoopTask = Task { await autoSwitchLoop() }
-        observeWorkspacePowerState()
+        startRefreshLoopIfNeeded()
+    }
+
+    private func startRefreshLoopIfNeeded() {
+        guard refreshLoopTask == nil || refreshLoopTask?.isCancelled == true else { return }
+        let generation = UUID()
+        refreshLoopGeneration = generation
+        refreshLoopTask = Task { await refreshLoop(generation: generation) }
     }
 
     /// System sleep can leave in-flight network and subprocess requests hung
@@ -136,20 +146,29 @@ final class UsageViewModel: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.handleSystemWake() }
         }
+
+        applicationActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: NSApplication.shared,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.startRefreshLoopIfNeeded() }
+        }
     }
 
     private func handleSystemSleep() {
-        refreshTask?.cancel()
+        scheduledRefreshTask?.cancel()
         refreshingProviders.removeAll()
         updateIsRefreshing()
     }
 
     private func handleSystemWake() {
         now = Date()
-        refreshTask?.cancel()
+        scheduledRefreshTask?.cancel()
+        refreshLoopTask?.cancel()
         refreshingProviders.removeAll()
         updateIsRefreshing()
-        refreshTask = Task { await refresh() }
+        startRefreshLoopIfNeeded()
     }
 
     func refresh() async {
@@ -623,12 +642,29 @@ final class UsageViewModel: ObservableObject {
         return FileManager.default.fileExists(atPath: path)
     }
 
-    private func refreshLoop() async {
+    private func refreshLoop(generation: UUID) async {
         while !Task.isCancelled {
-            refreshTask = Task { await refresh() }
-            await refreshTask?.value
-            let interval = configuration.refresh.intervalSeconds
-            try? await Task.sleep(for: .seconds(interval))
+            let refreshTask = Task { await refresh() }
+            guard refreshLoopGeneration == generation else {
+                refreshTask.cancel()
+                return
+            }
+            scheduledRefreshTask = refreshTask
+            await refreshTask.value
+
+            guard refreshLoopGeneration == generation else { return }
+            scheduledRefreshTask = nil
+
+            guard !Task.isCancelled else { return }
+
+            do {
+                let interval = configuration.refresh.intervalSeconds
+                try await Task.sleep(for: .seconds(interval))
+            } catch is CancellationError {
+                return
+            } catch {
+                continue
+            }
         }
     }
 
