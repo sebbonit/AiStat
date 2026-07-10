@@ -31,6 +31,7 @@ public final class BackendCodexAccountClient: CodexAccountFetching, @unchecked S
         let token = try CodexAuthFile(path: authPath).accessToken()
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
+        request.timeoutInterval = 10
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("LimitLens/1.0", forHTTPHeaderField: "User-Agent")

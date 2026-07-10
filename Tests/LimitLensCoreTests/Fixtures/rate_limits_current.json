@@ -1,0 +1,26 @@
+{
+  "rateLimits": {
+    "limitId": "codex",
+    "primary": {
+      "usedPercent": 16,
+      "windowDurationMins": 300,
+      "resetsAt": 1783672433
+    },
+    "planType": "plus"
+  },
+  "rateLimitsByLimitId": null,
+  "rateLimitResetCredits": {
+    "availableCount": 1,
+    "credits": [
+      {
+        "id": "credit-1",
+        "resetType": "codexRateLimits",
+        "status": "available",
+        "grantedAt": 1781000000,
+        "expiresAt": 1782000000,
+        "title": "Full reset",
+        "description": "One free reset"
+      }
+    ]
+  }
+}

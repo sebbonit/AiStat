@@ -49,6 +49,7 @@ public final class CursorUsageClient: CursorUsageFetching, @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = Data("{}".utf8)
+        request.timeoutInterval = 10
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

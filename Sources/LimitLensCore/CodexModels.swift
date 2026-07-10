@@ -33,6 +33,17 @@ public struct RateLimitSnapshot: Codable, Equatable, Sendable {
 public struct RateLimitResetCreditsSummary: Codable, Equatable, Sendable {
     public let availableCount: Int
     public let expiresAt: Int64?
+    public let credits: [RateLimitResetCreditSnapshot]?
+}
+
+public struct RateLimitResetCreditSnapshot: Codable, Equatable, Sendable {
+    public let id: String
+    public let resetType: String
+    public let status: String
+    public let grantedAt: Int64
+    public let expiresAt: Int64?
+    public let title: String?
+    public let description: String?
 }
 
 public struct ResetCreditInfo: Equatable, Sendable {
@@ -49,7 +60,19 @@ public struct ResetCreditInfo: Equatable, Sendable {
     public init(summary: RateLimitResetCreditsSummary?) {
         self.availableCount = summary?.availableCount ?? 0
         self.totalEarnedCount = nil
-        if let expiresAt = summary?.expiresAt {
+        if let credits = summary?.credits {
+            self.credits = credits.map { credit in
+                ResetCredit(
+                    id: credit.id,
+                    resetType: credit.resetType,
+                    status: credit.status,
+                    grantedAt: Date(timeIntervalSince1970: TimeInterval(credit.grantedAt)),
+                    expiresAt: credit.expiresAt.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                    title: credit.title,
+                    description: credit.description
+                )
+            }
+        } else if let expiresAt = summary?.expiresAt {
             self.credits = [
                 ResetCredit(
                     id: nil,

@@ -25,6 +25,18 @@ struct LimitLensCoreTests {
         #expect(response.preferredRateLimit.primary?.resetsAt == nil)
     }
 
+    @Test("Decodes reset-credit details from the current Codex response")
+    func decodesCurrentResetCreditDetails() throws {
+        let response = try decodeFixture("rate_limits_current", as: GetAccountRateLimitsResponse.self)
+        let resetCredits = ResetCreditInfo(summary: response.rateLimitResetCredits)
+
+        #expect(resetCredits.availableCount == 1)
+        #expect(resetCredits.credits.first?.id == "credit-1")
+        #expect(resetCredits.credits.first?.resetType == "codexRateLimits")
+        #expect(resetCredits.credits.first?.grantedAt == Date(timeIntervalSince1970: 1_781_000_000))
+        #expect(resetCredits.credits.first?.expiresAt == Date(timeIntervalSince1970: 1_782_000_000))
+    }
+
     @Test("Decodes token usage summary")
     func decodesUsageSummary() throws {
         let response = try decodeFixture("usage", as: GetAccountTokenUsageResponse.self)

@@ -30,10 +30,12 @@ public final class DesktopQuotaClient: DesktopQuotaFetching, @unchecked Sendable
         if let remoteSnapshot = try? await DevinRemoteQuotaClient(databasePath: liveDatabasePath).fetchSnapshot() {
             return [remoteSnapshot]
         }
+        try Task.checkCancellation()
 
         if let liveSnapshot = try? await DevinLanguageServerQuotaClient(databasePath: liveDatabasePath).fetchSnapshot() {
             return [liveSnapshot]
         }
+        try Task.checkCancellation()
 
         return try sources.compactMap { source -> DesktopQuotaSnapshot? in
             guard FileManager.default.fileExists(atPath: source.databasePath) else {
@@ -106,6 +108,7 @@ private final class DevinLanguageServerQuotaClient: @unchecked Sendable {
         var urlRequest = URLRequest(url: URL(string: "http://127.0.0.1:\(process.port)/exa.language_server_pb.LanguageServerService/GetUserStatus")!)
         urlRequest.httpMethod = "POST"
         urlRequest.httpBody = request
+        urlRequest.timeoutInterval = 5
         urlRequest.setValue("application/proto", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/proto", forHTTPHeaderField: "Accept")
         urlRequest.setValue("1", forHTTPHeaderField: "connect-protocol-version")
