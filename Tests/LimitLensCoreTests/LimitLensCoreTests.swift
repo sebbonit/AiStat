@@ -438,22 +438,31 @@ struct LimitLensCoreTests {
         #expect(UsageFormatting.compactCountdownText(date: nil, now: now) == "?")
         #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(-60), now: now) == "now")
         #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(15 * 60), now: now) == "15m")
-        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(90 * 60), now: now) == "1h30m")
+        // Sub-hour times keep minute-level precision up to 59m
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(45 * 60), now: now) == "45m")
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(59 * 60), now: now) == "59m")
+        // 90m rounds to nearest hour (2h) in the compact display
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(90 * 60), now: now) == "2h")
         #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(60 * 60), now: now) == "1h")
         #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(25 * 3_600), now: now) == "1d1h")
         #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(86_400), now: now) == "1d")
     }
 
-    @Test("Compact countdown rounds to nearest minute")
-    func compactCountdownRoundsToNearestMinute() {
+    @Test("Compact countdown rounds to nearest hour")
+    func compactCountdownRoundsToNearestHour() {
         let now = Date(timeIntervalSince1970: 1_782_900_000)
 
-        // 5h minus 10s should round up to 5h, not truncate to 4h59m
+        // 5h minus 2m should round up to 5h, not display 4h58m
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(5 * 3_600 - 120), now: now) == "5h")
+        // 5h minus 10s should round up to 5h
         #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(5 * 3_600 - 10), now: now) == "5h")
-        // 5h minus 31s should round down to 4h59m
-        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(5 * 3_600 - 31), now: now) == "4h59m")
-        // 90m plus 29s should still round to 1h30m
-        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(90 * 60 + 29), now: now) == "1h30m")
+        // 4h 29m should round down to 4h
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(4 * 3_600 + 29 * 60), now: now) == "4h")
+        // 4h 30m should round up to 5h
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(4 * 3_600 + 30 * 60), now: now) == "5h")
+        // Sub-hour times keep minute-level precision (no rounding to 1h)
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(45 * 60), now: now) == "45m")
+        #expect(UsageFormatting.compactCountdownText(date: now.addingTimeInterval(59 * 60), now: now) == "59m")
     }
 
     @Test("Formats relative day text")

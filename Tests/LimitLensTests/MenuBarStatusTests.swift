@@ -195,12 +195,14 @@ struct MenuBarStatusTests {
 
     @Test("Countdowns mode populates compact countdown text per indicator")
     func countdownsModePopulatesCountdownText() async {
+        let now = Date(timeIntervalSince1970: 1_782_900_000)
         let viewModel = makeViewModel(
-            codex: MockCodexUsageClient(result: .success(codexSnapshot(primaryPercent: 42, resetsInSeconds: 5_400))),
-            cursor: MockCursorUsageClient(result: .success(cursorSnapshot(percent: 25, resetsInSeconds: 9_000))),
-            desktopQuota: MockDesktopQuotaClient(result: .success([desktopQuotaSnapshot(dailyRemainingPercent: 80, dailyResetsInSeconds: 90_000)])),
-            openCodeGo: MockOpenCodeGoUsageClient(result: .success(openCodeGoSnapshot(percent: 5, resetsInSeconds: 1_200)))
+            codex: MockCodexUsageClient(result: .success(codexSnapshot(primaryPercent: 42, resetsInSeconds: 5_400, now: now))),
+            cursor: MockCursorUsageClient(result: .success(cursorSnapshot(percent: 25, resetsInSeconds: 9_000, now: now))),
+            desktopQuota: MockDesktopQuotaClient(result: .success([desktopQuotaSnapshot(dailyRemainingPercent: 80, dailyResetsInSeconds: 90_000, now: now)])),
+            openCodeGo: MockOpenCodeGoUsageClient(result: .success(openCodeGoSnapshot(percent: 5, resetsInSeconds: 1_200, now: now)))
         )
+        viewModel.setNowForTesting(now)
 
         await viewModel.refresh()
         viewModel.updateConfiguration { $0.privacy.menuBarDisplay = .countdowns }
@@ -208,8 +210,9 @@ struct MenuBarStatusTests {
 
         #expect(status.menuBarDisplay == .countdowns)
         #expect(status.indicators.count == 4)
-        #expect(status.indicators[0].countdownText == "1h30m")
-        #expect(status.indicators[1].countdownText == "2h30m")
+        // Compact countdown rounds to the nearest hour; sub-hour keeps minutes
+        #expect(status.indicators[0].countdownText == "2h")
+        #expect(status.indicators[1].countdownText == "3h")
         #expect(status.indicators[2].countdownText == "1d1h")
         #expect(status.indicators[3].countdownText == "20m")
     }
@@ -396,12 +399,13 @@ private func codexSnapshot(
     resetsInSeconds: TimeInterval = 3_600,
     primaryDurationMinutes: Int = 1_440,
     secondaryPercent: Int? = nil,
-    secondaryDurationMinutes: Int = 10_080
+    secondaryDurationMinutes: Int = 10_080,
+    now: Date = Date()
 ) -> LimitLensSnapshot {
     let secondaryJSON = secondaryPercent.map {
         """
         {
-          "resetsAt": \(Int(Date().addingTimeInterval(86_400).timeIntervalSince1970)),
+          "resetsAt": \(Int(now.addingTimeInterval(86_400).timeIntervalSince1970)),
           "usedPercent": \($0),
           "windowDurationMins": \(secondaryDurationMinutes)
         }
@@ -416,7 +420,7 @@ private func codexSnapshot(
           "limitName": null,
           "planType": "pro",
           "primary": {
-            "resetsAt": \(Int(Date().addingTimeInterval(resetsInSeconds).timeIntervalSince1970)),
+            "resetsAt": \(Int(now.addingTimeInterval(resetsInSeconds).timeIntervalSince1970)),
             "usedPercent": \(primaryPercent),
             "windowDurationMins": \(primaryDurationMinutes)
           },
@@ -433,13 +437,13 @@ private func codexSnapshot(
     )
 }
 
-private func cursorSnapshot(percent: Double, resetsInSeconds: TimeInterval = 86_400) -> CursorUsageSnapshot {
+private func cursorSnapshot(percent: Double, resetsInSeconds: TimeInterval = 86_400, now: Date = Date()) -> CursorUsageSnapshot {
     CursorUsageSnapshot(
         planName: "Pro",
         price: "$20/mo",
         includedAmountCents: 2_000,
         billingCycleStart: nil,
-        billingCycleEnd: Date().addingTimeInterval(resetsInSeconds),
+        billingCycleEnd: now.addingTimeInterval(resetsInSeconds),
         remainingCents: nil,
         limitCents: nil,
         totalPercentUsed: percent,
@@ -453,24 +457,24 @@ private func cursorSnapshot(percent: Double, resetsInSeconds: TimeInterval = 86_
     )
 }
 
-private func desktopQuotaSnapshot(dailyRemainingPercent: Int, dailyResetsInSeconds: TimeInterval = 86_400) -> DesktopQuotaSnapshot {
+private func desktopQuotaSnapshot(dailyRemainingPercent: Int, dailyResetsInSeconds: TimeInterval = 86_400, now: Date = Date()) -> DesktopQuotaSnapshot {
     DesktopQuotaSnapshot(
         appName: "Devin Desktop",
         planName: "Pro",
         billingStrategy: "quota",
         cycleStart: nil,
-        cycleEnd: Date().addingTimeInterval(86_400 * 20),
+        cycleEnd: now.addingTimeInterval(86_400 * 20),
         dailyRemainingPercent: dailyRemainingPercent,
         weeklyRemainingPercent: 80,
-        dailyResetAt: Date().addingTimeInterval(dailyResetsInSeconds),
-        weeklyResetAt: Date().addingTimeInterval(86_400 * 7),
+        dailyResetAt: now.addingTimeInterval(dailyResetsInSeconds),
+        weeklyResetAt: now.addingTimeInterval(86_400 * 7),
         overageBalanceMicros: nil
     )
 }
 
-private func openCodeGoSnapshot(percent: Double, resetsInSeconds: TimeInterval = 3_600) -> OpenCodeGoUsageSnapshot {
+private func openCodeGoSnapshot(percent: Double, resetsInSeconds: TimeInterval = 3_600, now: Date = Date()) -> OpenCodeGoUsageSnapshot {
     OpenCodeGoUsageSnapshot(
-        rolling: OpenCodeGoUsageWindow(usedPercent: percent, resetAt: Date().addingTimeInterval(resetsInSeconds)),
+        rolling: OpenCodeGoUsageWindow(usedPercent: percent, resetAt: now.addingTimeInterval(resetsInSeconds)),
         weekly: nil,
         monthly: nil,
         billing: nil,

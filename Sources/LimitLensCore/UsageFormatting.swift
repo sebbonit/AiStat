@@ -59,18 +59,20 @@ public enum UsageFormatting {
         let interval = date.timeIntervalSince(now)
         guard interval > 0 else { return "now" }
 
+        // Round to the nearest hour for the compact menu bar display so that
+        // minor time differences (e.g. 4h 58m) display as the nearest round
+        // hour (e.g. 5h).  Times under 1 hour keep minute-level precision.
+        if interval >= 3600 {
+            let totalHours = Int((interval + 1800) / 3600)
+            if totalHours >= 24 {
+                let days = totalHours / 24
+                let hours = totalHours % 24
+                return hours > 0 ? "\(days)d\(hours)h" : "\(days)d"
+            }
+            return "\(totalHours)h"
+        }
         let totalMinutes = Int((interval + 30) / 60)
-        let days = totalMinutes / (60 * 24)
-        let hours = (totalMinutes % (60 * 24)) / 60
-        let minutes = totalMinutes % 60
-
-        if days > 0 {
-            return hours > 0 ? "\(days)d\(hours)h" : "\(days)d"
-        }
-        if hours > 0 {
-            return minutes > 0 ? "\(hours)h\(minutes)m" : "\(hours)h"
-        }
-        return "\(max(minutes, 1))m"
+        return "\(max(totalMinutes, 1))m"
     }
 
     public static func percentRemaining(usedPercent: Int) -> Int {
