@@ -127,6 +127,33 @@ struct RefreshConfigTests {
         #expect(codex.attemptCount == 1)
     }
 
+    @Test("Cancelling a refresh stops retries and clears refreshing state")
+    func cancellationStopsRetriesAndClearsRefreshingState() async {
+        let codex = CancellableCodexClient()
+        var config = LimitLensConfiguration.defaults
+        config.refresh.retryEnabled = true
+        config.refresh.maxRetryAttempts = 3
+        let viewModel = UsageViewModel(
+            configuration: config,
+            service: codex,
+            cursorService: MockCursorUsageClient(result: .failure(TestError.unavailable)),
+            desktopQuotaService: MockDesktopQuotaClient(result: .failure(TestError.unavailable)),
+            openCodeGoService: MockOpenCodeGoUsageClient(result: .failure(TestError.unavailable))
+        )
+
+        let refreshTask = Task { await viewModel.refreshProvider(.codex) }
+        while codex.attemptCount == 0 {
+            await Task.yield()
+        }
+        refreshTask.cancel()
+        await refreshTask.value
+
+        #expect(codex.attemptCount == 1)
+        #expect(viewModel.isRefreshing == false)
+        #expect(viewModel.isProviderRefreshing(.codex) == false)
+        #expect(viewModel.lastErrors[.codex] == nil)
+    }
+
     private func makeViewModel(
         configuration: LimitLensConfiguration = {
             var config = LimitLensConfiguration.defaults
@@ -233,6 +260,16 @@ private final class RetryableCodexClient: CodexUsageFetching, @unchecked Sendabl
             throw TestError.unavailable
         }
         return snapshot
+    }
+}
+
+private final class CancellableCodexClient: CodexUsageFetching, @unchecked Sendable {
+    var attemptCount = 0
+
+    func fetchSnapshot() async throws -> LimitLensSnapshot {
+        attemptCount += 1
+        try await Task.sleep(for: .seconds(5))
+        throw TestError.unavailable
     }
 }
 

@@ -34,7 +34,7 @@ final class UsageViewModel: ObservableObject {
     private var paceSampleHistory: [ProviderTab: [PaceSample]] = [:]
 
     var isProviderRefreshing: (ProviderTab) -> Bool {
-        { self.refreshingProviders.contains($0) }
+        { self.refreshingProviders[$0] != nil }
     }
 
     private let configurationStore: LimitLensConfigurationStore?
@@ -43,11 +43,12 @@ final class UsageViewModel: ObservableObject {
     private let desktopQuotaService: DesktopQuotaFetching?
     private let openCodeGoService: OpenCodeGoUsageFetching?
     private var didStartLoops = false
-    private var refreshingProviders: Set<ProviderTab> = []
+    private var refreshingProviders: [ProviderTab: UUID] = [:]
     private let notificationCoordinator: NotificationCoordinator
     private var refreshTask: Task<Void, Never>?
     private var refreshLoopTask: Task<Void, Never>?
     private var clockLoopTask: Task<Void, Never>?
+    private var sleepObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
 
     convenience init(configurationStore: LimitLensConfigurationStore = LimitLensConfigurationStore()) {
@@ -103,22 +104,34 @@ final class UsageViewModel: ObservableObject {
 
         refreshLoopTask = Task { await refreshLoop() }
         clockLoopTask = Task { await clockLoop() }
-        observeWorkspaceWake()
+        observeWorkspacePowerState()
     }
 
-    /// System sleep pauses `Task.sleep` (its clock stops while suspended) and
-    /// can leave in-flight network requests hung after the network drops on
-    /// wake. Without handling this, `isRefreshing` stays stuck `true`, which
-    /// both pins the menu-bar refresh badges on and disables the per-provider
-    /// refresh buttons until the app is restarted.
-    private func observeWorkspaceWake() {
-        wakeObserver = NotificationCenter.default.addObserver(
+    /// System sleep can leave in-flight network and subprocess requests hung
+    /// after the network drops. Cancel before sleep, then start a clean refresh
+    /// on wake so the UI cannot remain pinned in its refreshing state.
+    private func observeWorkspacePowerState() {
+        let center = NSWorkspace.shared.notificationCenter
+        sleepObserver = center.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleSystemSleep() }
+        }
+        wakeObserver = center.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.handleSystemWake() }
         }
+    }
+
+    private func handleSystemSleep() {
+        refreshTask?.cancel()
+        refreshingProviders.removeAll()
+        updateIsRefreshing()
     }
 
     private func handleSystemWake() {
@@ -162,6 +175,7 @@ final class UsageViewModel: ObservableObject {
                 openCodeGoSnapshot = nil
             }
         }
+        guard !Task.isCancelled else { return }
         await evaluateNotifications()
     }
 
@@ -259,7 +273,7 @@ final class UsageViewModel: ObservableObject {
 
     func refreshProvider(_ tab: ProviderTab) async {
         guard isProviderEnabled(tab) else { return }
-        guard !refreshingProviders.contains(tab) else { return }
+        guard refreshingProviders[tab] == nil else { return }
         isRefreshing = true
         defer { updateIsRefreshing() }
         switch tab {
@@ -280,6 +294,19 @@ final class UsageViewModel: ObservableObject {
         isRefreshing = !refreshingProviders.isEmpty
     }
 
+    private func beginRefreshing(_ tab: ProviderTab) -> UUID {
+        let refreshID = UUID()
+        refreshingProviders[tab] = refreshID
+        updateIsRefreshing()
+        return refreshID
+    }
+
+    private func finishRefreshing(_ tab: ProviderTab, refreshID: UUID) {
+        guard refreshingProviders[tab] == refreshID else { return }
+        refreshingProviders[tab] = nil
+        updateIsRefreshing()
+    }
+
     func updateConfiguration(_ update: (inout LimitLensConfiguration) -> Void) {
         update(&configuration)
         configurationStore?.configuration = configuration
@@ -295,61 +322,65 @@ final class UsageViewModel: ObservableObject {
     }
 
     private func refreshCodex() async {
-        refreshingProviders.insert(.codex)
-        updateIsRefreshing()
-        defer {
-            refreshingProviders.remove(.codex)
-            updateIsRefreshing()
-        }
+        let refreshID = beginRefreshing(.codex)
+        defer { finishRefreshing(.codex, refreshID: refreshID) }
         state = snapshot == nil ? .loading : .loaded
         do {
-            snapshot = try await withRetry { try await codexService().fetchSnapshot() }
+            let refreshedSnapshot = try await withRetry { try await codexService().fetchSnapshot() }
+            try Task.checkCancellation()
+            guard refreshingProviders[.codex] == refreshID else { return }
+            snapshot = refreshedSnapshot
             state = .loaded
             lastFetchAt[.codex] = Date()
             updatePaceProjection(for: .codex)
             lastErrors[.codex] = nil
+        } catch is CancellationError {
+            return
         } catch let error as CodexUsageError {
+            guard refreshingProviders[.codex] == refreshID else { return }
             state = .failed(error.localizedDescription)
             lastErrors[.codex] = error.localizedDescription
         } catch {
+            guard refreshingProviders[.codex] == refreshID else { return }
             state = .failed("Usage data is temporarily unavailable.")
             lastErrors[.codex] = "Usage data is temporarily unavailable."
         }
     }
 
     private func refreshCursor() async {
-        refreshingProviders.insert(.cursor)
-        updateIsRefreshing()
-        defer {
-            refreshingProviders.remove(.cursor)
-            updateIsRefreshing()
-        }
+        let refreshID = beginRefreshing(.cursor)
+        defer { finishRefreshing(.cursor, refreshID: refreshID) }
         cursorState = cursorSnapshot == nil ? .loading : .loaded
         do {
-            cursorSnapshot = try await withRetry { try await cursorUsageService().fetchSnapshot() }
+            let refreshedSnapshot = try await withRetry { try await cursorUsageService().fetchSnapshot() }
+            try Task.checkCancellation()
+            guard refreshingProviders[.cursor] == refreshID else { return }
+            cursorSnapshot = refreshedSnapshot
             cursorState = .loaded
             lastFetchAt[.cursor] = Date()
             updatePaceProjection(for: .cursor)
             lastErrors[.cursor] = nil
+        } catch is CancellationError {
+            return
         } catch let error as CursorUsageError {
+            guard refreshingProviders[.cursor] == refreshID else { return }
             cursorState = .failed(error.localizedDescription)
             lastErrors[.cursor] = error.localizedDescription
         } catch {
+            guard refreshingProviders[.cursor] == refreshID else { return }
             cursorState = .failed("Cursor usage is temporarily unavailable.")
             lastErrors[.cursor] = "Cursor usage is temporarily unavailable."
         }
     }
 
     private func refreshDesktopQuotas() async {
-        refreshingProviders.insert(.devin)
-        updateIsRefreshing()
-        defer {
-            refreshingProviders.remove(.devin)
-            updateIsRefreshing()
-        }
+        let refreshID = beginRefreshing(.devin)
+        defer { finishRefreshing(.devin, refreshID: refreshID) }
         desktopQuotaState = desktopQuotaSnapshots.isEmpty ? .loading : .loaded
         do {
             let snapshots = try await withRetry { try await desktopQuotaUsageService().fetchSnapshots() }
+            try Task.checkCancellation()
+            guard refreshingProviders[.devin] == refreshID else { return }
             desktopQuotaSnapshots = snapshots
             desktopQuotaState = snapshots.isEmpty ? .failed("Devin quota cache unavailable.") : .loaded
             if !snapshots.isEmpty {
@@ -359,48 +390,61 @@ final class UsageViewModel: ObservableObject {
             } else {
                 lastErrors[.devin] = "Devin quota cache unavailable."
             }
+        } catch is CancellationError {
+            return
         } catch {
+            guard refreshingProviders[.devin] == refreshID else { return }
             desktopQuotaState = .failed("Devin quotas are temporarily unavailable.")
             lastErrors[.devin] = "Devin quotas are temporarily unavailable."
         }
     }
 
     private func refreshOpenCodeGo() async {
-        refreshingProviders.insert(.openCodeGo)
-        updateIsRefreshing()
-        defer {
-            refreshingProviders.remove(.openCodeGo)
-            updateIsRefreshing()
-        }
+        let refreshID = beginRefreshing(.openCodeGo)
+        defer { finishRefreshing(.openCodeGo, refreshID: refreshID) }
         openCodeGoState = openCodeGoSnapshot == nil ? .loading : .loaded
         do {
-            openCodeGoSnapshot = try await withRetry { try await openCodeGoUsageService().fetchSnapshot() }
+            let refreshedSnapshot = try await withRetry { try await openCodeGoUsageService().fetchSnapshot() }
+            try Task.checkCancellation()
+            guard refreshingProviders[.openCodeGo] == refreshID else { return }
+            openCodeGoSnapshot = refreshedSnapshot
             openCodeGoState = .loaded
             lastFetchAt[.openCodeGo] = Date()
             updatePaceProjection(for: .openCodeGo)
             lastErrors[.openCodeGo] = nil
+        } catch is CancellationError {
+            return
         } catch let error as CodexUsageError {
+            guard refreshingProviders[.openCodeGo] == refreshID else { return }
             openCodeGoState = .failed(error.localizedDescription)
             lastErrors[.openCodeGo] = error.localizedDescription
         } catch {
+            guard refreshingProviders[.openCodeGo] == refreshID else { return }
             openCodeGoState = .failed("OpenCode Go usage is temporarily unavailable.")
             lastErrors[.openCodeGo] = "OpenCode Go usage is temporarily unavailable."
         }
     }
 
     private func withRetry<T: Sendable>(_ operation: () async throws -> T) async throws -> T {
-        guard configuration.refresh.retryEnabled else { return try await operation() }
-        let maxAttempts = configuration.refresh.maxRetryAttempts
+        let maxAttempts = configuration.refresh.retryEnabled
+            ? configuration.refresh.maxRetryAttempts
+            : 1
         var attempt = 0
         while true {
+            try Task.checkCancellation()
             do {
-                return try await operation()
+                let value = try await operation()
+                try Task.checkCancellation()
+                return value
             } catch {
+                if error is CancellationError || Task.isCancelled {
+                    throw CancellationError()
+                }
                 attempt += 1
                 if attempt >= maxAttempts { throw error }
                 let delaySeconds = retryDelayProvider(attempt)
                 if delaySeconds > 0 {
-                    try? await Task.sleep(for: .seconds(delaySeconds))
+                    try await Task.sleep(for: .seconds(delaySeconds))
                 }
             }
         }
