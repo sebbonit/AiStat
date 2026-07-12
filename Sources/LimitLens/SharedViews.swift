@@ -113,15 +113,18 @@ struct UsageCard: View {
                 HStack(spacing: 6) {
                     if let leadingDetail {
                         Text(leadingDetail)
+                            .layoutPriority(1)
                     }
                     Spacer(minLength: 4)
                     if let trailingDetail {
                         Text(trailingDetail)
+                            .layoutPriority(1)
                     }
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 9)
