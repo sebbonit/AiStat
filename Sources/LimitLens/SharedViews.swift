@@ -19,6 +19,7 @@ extension AppAppearance {
         case .classic: return 460
         case .studio: return 680
         case .terminal: return 620
+        case .pulse: return 500
         }
     }
 
@@ -27,6 +28,7 @@ extension AppAppearance {
         case .classic: return 12
         case .studio: return 16
         case .terminal: return 8
+        case .pulse: return 14
         }
     }
 
@@ -35,6 +37,7 @@ extension AppAppearance {
         case .classic: return 7
         case .studio: return 15
         case .terminal: return 2
+        case .pulse: return 20
         }
     }
 
@@ -43,6 +46,7 @@ extension AppAppearance {
         case .classic: return 8
         case .studio: return 12
         case .terminal: return 1
+        case .pulse: return 16
         }
     }
 
@@ -51,6 +55,7 @@ extension AppAppearance {
         case .classic: return .accentColor
         case .studio: return .indigo
         case .terminal: return .green
+        case .pulse: return Color(red: 0.96, green: 0.42, blue: 0.18)
         }
     }
 
@@ -71,6 +76,13 @@ extension AppAppearance {
             }
         case .terminal:
             return Color(red: 0.025, green: 0.032, blue: 0.028)
+        case .pulse:
+            switch colorScheme {
+            case .dark:
+                return Color(red: 0.08, green: 0.07, blue: 0.065)
+            default:
+                return Color(red: 0.985, green: 0.965, blue: 0.945)
+            }
         }
     }
 
@@ -87,6 +99,13 @@ extension AppAppearance {
             }
         case .terminal:
             return Color(red: 0.035, green: 0.055, blue: 0.043)
+        case .pulse:
+            switch colorScheme {
+            case .dark:
+                return Color(red: 0.13, green: 0.115, blue: 0.105)
+            default:
+                return Color(red: 1.0, green: 0.99, blue: 0.98)
+            }
         }
     }
 
@@ -96,6 +115,13 @@ extension AppAppearance {
             switch colorScheme {
             case .dark:
                 return Color(red: 0.15, green: 0.155, blue: 0.22)
+            default:
+                return .white
+            }
+        case .pulse:
+            switch colorScheme {
+            case .dark:
+                return Color(red: 0.16, green: 0.14, blue: 0.125)
             default:
                 return .white
             }
@@ -112,6 +138,15 @@ extension AppAppearance {
             return Color.indigo.opacity(0.08)
         }
     }
+
+    func pulseShadowColor(for colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .dark:
+            return Color.black.opacity(0.34)
+        default:
+            return accentColor.opacity(0.12)
+        }
+    }
 }
 
 struct SectionBlock<Content: View>: View {
@@ -121,7 +156,7 @@ struct SectionBlock<Content: View>: View {
 
     var body: some View {
         content
-            .padding(appearance == .terminal ? 8 : 10)
+            .padding(appearance == .terminal ? 8 : (appearance == .pulse ? 12 : 10))
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: appearance.panelCornerRadius, style: .continuous)
@@ -130,15 +165,39 @@ struct SectionBlock<Content: View>: View {
             .overlay(
                 RoundedRectangle(cornerRadius: appearance.panelCornerRadius, style: .continuous)
                     .stroke(
-                        appearance == .terminal ? Color.green.opacity(0.26) : appearance.accentColor.opacity(0.10),
-                        lineWidth: appearance == .terminal ? 1 : 0.5
+                        appearance == .terminal ? Color.green.opacity(0.26) : appearance.accentColor.opacity(appearance == .pulse ? 0.14 : 0.10),
+                        lineWidth: appearance == .terminal ? 1 : (appearance == .pulse ? 1 : 0.5)
                     )
             )
             .shadow(
-                color: appearance == .studio ? appearance.studioShadowColor(for: colorScheme) : .clear,
-                radius: appearance == .studio ? 8 : 0,
-                y: appearance == .studio ? 3 : 0
+                color: sectionShadowColor,
+                radius: sectionShadowRadius,
+                y: sectionShadowY
             )
+    }
+
+    private var sectionShadowColor: Color {
+        switch appearance {
+        case .studio: return appearance.studioShadowColor(for: colorScheme)
+        case .pulse: return appearance.pulseShadowColor(for: colorScheme)
+        default: return .clear
+        }
+    }
+
+    private var sectionShadowRadius: CGFloat {
+        switch appearance {
+        case .studio: return 8
+        case .pulse: return 10
+        default: return 0
+        }
+    }
+
+    private var sectionShadowY: CGFloat {
+        switch appearance {
+        case .studio: return 3
+        case .pulse: return 4
+        default: return 0
+        }
     }
 }
 
@@ -253,6 +312,8 @@ struct UsageCard: View {
             studioCard
         case .terminal:
             terminalCard
+        case .pulse:
+            pulseCard
         }
     }
 
@@ -390,6 +451,60 @@ struct UsageCard: View {
         .background(Color.black.opacity(0.26))
         .overlay(Rectangle().stroke(Color.green.opacity(0.32), lineWidth: 1))
     }
+
+    private var pulseCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tint)
+                Spacer(minLength: 4)
+                Text(percentText(percentUsed))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(percentUsed == nil ? .secondary : .primary)
+            }
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(tint.opacity(0.12))
+                    Capsule()
+                        .fill(tint)
+                        .frame(width: max(8, geometry.size.width * clampedPercent / 100))
+                }
+            }
+            .frame(height: 10)
+
+            if leadingDetail != nil || trailingDetail != nil {
+                HStack(spacing: 8) {
+                    if let leadingDetail {
+                        Text(leadingDetail)
+                            .layoutPriority(1)
+                    }
+                    Spacer(minLength: 4)
+                    if let trailingDetail {
+                        Text(trailingDetail)
+                            .layoutPriority(1)
+                    }
+                }
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(tint.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+        )
+    }
 }
 
 struct MetricTile: View {
@@ -416,16 +531,28 @@ struct MetricTile: View {
                 .foregroundStyle(Color(red: 0.76, green: 1, blue: 0.79))
                 .background(Color.black.opacity(0.22))
                 .overlay(Rectangle().stroke(Color.green.opacity(0.22), lineWidth: 1))
+        case .pulse:
+            metricContent
+                .padding(12)
+                .frame(maxWidth: .infinity, minHeight: 70, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(appearance.accentColor.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(appearance.accentColor.opacity(0.14), lineWidth: 1)
+                )
         }
     }
 
     private var metricContent: some View {
-        VStack(alignment: .leading, spacing: appearance == .studio ? 5 : 3) {
+        VStack(alignment: .leading, spacing: appearance == .studio || appearance == .pulse ? 5 : 3) {
             Text(title)
                 .font(appearance == .terminal ? .system(size: 9, weight: .bold, design: .monospaced) : .caption2.weight(.medium))
                 .foregroundStyle(appearance == .terminal ? Color.green.opacity(0.62) : Color.secondary)
             Text(value)
-                .font(appearance == .studio ? .title3.weight(.bold) : .body.weight(.semibold))
+                .font(appearance == .studio || appearance == .pulse ? .title3.weight(.bold) : .body.weight(.semibold))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -628,6 +755,8 @@ struct SectionHeader: View {
             studioHeader
         case .terminal:
             terminalHeader
+        case .pulse:
+            pulseHeader
         }
     }
 
@@ -701,6 +830,34 @@ struct SectionHeader: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.green.opacity(0.28)).frame(height: 1)
         }
+    }
+
+    private var pulseHeader: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(appearance.accentColor)
+                .frame(width: 8, height: 8)
+                .overlay(
+                    Circle()
+                        .stroke(appearance.accentColor.opacity(0.35), lineWidth: 4)
+                        .frame(width: 16, height: 16)
+                )
+                .frame(width: 18, height: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            headerControls
+        }
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder

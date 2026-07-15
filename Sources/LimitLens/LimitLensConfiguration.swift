@@ -11,6 +11,7 @@ enum AppAppearance: String, Codable, Equatable, CaseIterable, Identifiable {
     case classic
     case studio
     case terminal
+    case pulse
 
     var id: String { rawValue }
 
@@ -19,6 +20,7 @@ enum AppAppearance: String, Codable, Equatable, CaseIterable, Identifiable {
         case .classic: return "Classic"
         case .studio: return "Studio"
         case .terminal: return "Terminal"
+        case .pulse: return "Pulse"
         }
     }
 
@@ -27,6 +29,7 @@ enum AppAppearance: String, Codable, Equatable, CaseIterable, Identifiable {
         case .classic: return "Balanced cards with top navigation."
         case .studio: return "A spacious workspace with a labeled sidebar."
         case .terminal: return "Compact, dark and keyboard-console inspired."
+        case .pulse: return "Meter-first cards with bottom navigation."
         }
     }
 }

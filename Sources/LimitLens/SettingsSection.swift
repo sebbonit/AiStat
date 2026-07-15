@@ -126,6 +126,18 @@ struct SettingsSectionView: View {
             .padding(11)
             .background(Color.black.opacity(0.25))
             .overlay(Rectangle().stroke(Color.green.opacity(0.30), lineWidth: 1))
+        case .pulse:
+            VStack(alignment: .leading, spacing: isCollapsed ? 0 : 10) {
+                settingsSectionButton(id, title: title, systemImage: systemImage, detail: detail, isCollapsed: isCollapsed)
+                if !isCollapsed { content() }
+            }
+            .padding(13)
+            .background(appearance.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(appearance.accentColor.opacity(0.14), lineWidth: 1)
+            )
+            .shadow(color: appearance.pulseShadowColor(for: colorScheme), radius: 8, y: 3)
         }
     }
 
@@ -143,15 +155,15 @@ struct SettingsSectionView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
-                    .font(.system(size: appearance == .studio ? 13 : 11, weight: .semibold))
-                    .foregroundStyle(appearance == .studio ? appearance.accentColor : Color.secondary)
-                    .frame(width: appearance == .studio ? 30 : 20, height: appearance == .studio ? 30 : 20)
+                    .font(.system(size: appearance == .studio || appearance == .pulse ? 13 : 11, weight: .semibold))
+                    .foregroundStyle(appearance == .studio || appearance == .pulse ? appearance.accentColor : Color.secondary)
+                    .frame(width: appearance == .studio || appearance == .pulse ? 30 : 20, height: appearance == .studio || appearance == .pulse ? 30 : 20)
                     .background(
-                        RoundedRectangle(cornerRadius: appearance == .studio ? 9 : 10)
-                            .fill((appearance == .studio ? appearance.accentColor : Color.secondary).opacity(0.10))
+                        RoundedRectangle(cornerRadius: appearance == .studio || appearance == .pulse ? 9 : 10)
+                            .fill((appearance == .studio || appearance == .pulse ? appearance.accentColor : Color.secondary).opacity(0.10))
                     )
                 Text(title)
-                    .font(appearance == .studio ? .headline : .subheadline.weight(.semibold))
+                    .font(appearance == .studio || appearance == .pulse ? .headline : .subheadline.weight(.semibold))
                 Spacer()
                 if let detail {
                     Text(detail)
@@ -184,7 +196,10 @@ struct SettingsSectionView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(alignment: .top, spacing: 8) {
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                spacing: 8
+            ) {
                 ForEach(AppAppearance.allCases) { appearance in
                     appearanceOption(appearance)
                 }
@@ -274,6 +289,17 @@ struct SettingsSectionView: View {
                     }
                     Rectangle()
                         .stroke(Color.green.opacity(0.42), lineWidth: 1)
+                }
+                .padding(7)
+            case .pulse:
+                VStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(appearance.accentColor.opacity(0.18))
+                    HStack(spacing: 3) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            Capsule().fill(appearance.accentColor.opacity(0.35)).frame(height: 5)
+                        }
+                    }
                 }
                 .padding(7)
             }

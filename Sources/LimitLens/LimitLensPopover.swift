@@ -22,6 +22,8 @@ struct LimitLensPopover: View {
                 sidebarLayout
                     .environment(\.colorScheme, .dark)
                     .foregroundStyle(Color(red: 0.76, green: 1, blue: 0.79))
+            case .pulse:
+                pulseLayout
             }
         }
         .environment(\.appAppearance, appearance)
@@ -41,6 +43,86 @@ struct LimitLensPopover: View {
             footer
         }
         .padding(appearance.outerPadding)
+    }
+
+    private var pulseLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            pulseHeader
+            contentView
+            footer
+            bottomTabBar
+        }
+        .padding(appearance.outerPadding)
+    }
+
+    private var pulseHeader: some View {
+        HStack(spacing: 10) {
+            LimitLensMark()
+                .frame(width: 26, height: 26)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("LimitLens")
+                    .font(.subheadline.weight(.semibold))
+                Text(selectedTab.displayName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(appearance.accentColor)
+            }
+
+            Spacer()
+
+            Button {
+                Task { await viewModel.refresh() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(appearance.accentColor)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Capsule()
+                            .fill(appearance.accentColor.opacity(0.12))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Refresh all providers")
+        }
+    }
+
+    private var bottomTabBar: some View {
+        HStack(spacing: 4) {
+            ForEach(viewModel.visibleTabs) { tab in
+                bottomTabButton(for: tab)
+            }
+            bottomTabButton(for: .settings)
+        }
+        .padding(5)
+        .background(
+            Capsule(style: .continuous)
+                .fill(appearance.panelBackground(for: colorScheme))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(appearance.accentColor.opacity(0.16), lineWidth: 1)
+        )
+        .shadow(color: appearance.pulseShadowColor(for: colorScheme), radius: 8, y: 3)
+    }
+
+    private func bottomTabButton(for tab: ProviderTab) -> some View {
+        let isSelected = selectedTab == tab
+        return Button {
+            selectedTab = tab
+        } label: {
+            Image(systemName: providerIcon(tab.systemImage, hidesProviderNames: viewModel.hidesProviderNames))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? appearance.accentColor : .clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(providerName(tab.displayName, privateName: tab.privateName, hidesProviderNames: viewModel.hidesProviderNames))
     }
 
     private var sidebarLayout: some View {

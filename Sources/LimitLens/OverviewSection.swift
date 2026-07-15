@@ -23,6 +23,8 @@ struct OverviewSectionView: View {
             studioOverview
         case .terminal:
             terminalOverview
+        case .pulse:
+            pulseOverview
         }
     }
 
@@ -191,6 +193,128 @@ struct OverviewSectionView: View {
         .padding(12)
         .background(Color.black.opacity(0.20))
         .overlay(Rectangle().stroke(Color.green.opacity(0.34), lineWidth: 1))
+    }
+
+    private var pulseOverview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Live pulse")
+                        .font(.title3.weight(.bold))
+                    Text(overviewDetail)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(billingSummaryDetail)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(appearance.accentColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(appearance.accentColor.opacity(0.10), in: Capsule())
+            }
+
+            VStack(spacing: 8) {
+                ForEach(summaries) { summary in
+                    pulseProviderRow(summary)
+                }
+            }
+
+            if summaries.isEmpty {
+                StatusLine(icon: "slider.horizontal.3", color: .secondary, text: "No providers enabled.")
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Renewals")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    ForEach(billingExpiries) { entry in
+                        billingExpiryCell(entry)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(appearance.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(appearance.accentColor.opacity(0.12), lineWidth: 1)
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Exhaustion")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    if exhaustionSummaries.isEmpty {
+                        Text("No exhausted cycles yet")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(exhaustionSummaries.prefix(3)) { entry in
+                            exhaustionSpeedRow(entry)
+                        }
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(appearance.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(appearance.accentColor.opacity(0.12), lineWidth: 1)
+                )
+            }
+        }
+    }
+
+    private func pulseProviderRow(_ summary: ProviderUsageSummary) -> some View {
+        Button {
+            onSelectTab(summary.tab)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(severityColor(summary.severity).opacity(0.15), lineWidth: 5)
+                    Circle()
+                        .trim(from: 0, to: (summary.percentUsed ?? 0) / 100)
+                        .stroke(severityColor(summary.severity), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: providerIcon(summary.tab.systemImage, hidesProviderNames: hidesProviderNames))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(severityColor(summary.severity))
+                }
+                .frame(width: 42, height: 42)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(providerName(summary.tab.displayName, privateName: summary.tab.privateName, hidesProviderNames: hidesProviderNames))
+                        .font(.subheadline.weight(.semibold))
+                    Text(overviewSupportText(for: summary))
+                        .font(.caption2)
+                        .foregroundStyle(overviewSupportColor(for: summary))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(providerSafeMessage(summary.detail, hidesProviderNames: hidesProviderNames))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(summary.severity == .unavailable ? .secondary : .primary)
+                    Text(summary.secondaryDetail.map { providerSafeMessage($0, hidesProviderNames: hidesProviderNames) } ?? "—")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(12)
+            .background(appearance.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(severityColor(summary.severity).opacity(0.14), lineWidth: 1)
+            )
+            .shadow(color: appearance.pulseShadowColor(for: colorScheme), radius: 6, y: 3)
+        }
+        .buttonStyle(.plain)
     }
 
     private var terminalOverviewHeader: some View {
