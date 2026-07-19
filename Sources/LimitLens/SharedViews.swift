@@ -272,7 +272,7 @@ struct DailyUsageChart: View {
     }()
 
     private var displayedBuckets: [AccountTokenUsageDailyBucket] {
-        Array(buckets.sorted { $0.startDate < $1.startDate }.suffix(14))
+        DailyUsageChartBuckets.displayed(from: buckets)
     }
 
     private var maxTokens: Int64 {

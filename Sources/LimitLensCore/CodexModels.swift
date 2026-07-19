@@ -138,6 +138,11 @@ public struct GetAccountRateLimitsResponse: Codable, Equatable, Sendable {
 public struct AccountTokenUsageDailyBucket: Codable, Equatable, Sendable {
     public let startDate: String
     public let tokens: Int64
+
+    public init(startDate: String, tokens: Int64) {
+        self.startDate = startDate
+        self.tokens = tokens
+    }
 }
 
 public struct AccountTokenUsageSummary: Codable, Equatable, Sendable {
